@@ -21,7 +21,7 @@ MANIFEST_NAME = "checksums.json"
 @dataclass(frozen=True)
 class ValidationResult:
     ok: bool
-    fixture_count: int
+    file_count: int
     message: str = ""
 
 
@@ -50,7 +50,7 @@ def validate_contract_tree(root: Path | None = None) -> ValidationResult:
     if not manifest_path.exists():
         return ValidationResult(
             ok=False,
-            fixture_count=len(computed),
+            file_count=len(computed),
             message=f"missing {MANIFEST_NAME}",
         )
 
@@ -67,10 +67,10 @@ def validate_contract_tree(root: Path | None = None) -> ValidationResult:
     if compare_error is not None:
         return ValidationResult(False, len(computed), compare_error)
 
-    fixture_count, semantic_error = validate_contract_semantics(base)
+    _, semantic_error = validate_contract_semantics(base)
     if semantic_error is not None:
-        return ValidationResult(False, fixture_count, semantic_error)
-    return ValidationResult(ok=True, fixture_count=fixture_count, message="")
+        return ValidationResult(False, len(computed), semantic_error)
+    return ValidationResult(ok=True, file_count=len(computed), message="")
 
 
 def write_contract_manifest(root: Path | None = None) -> ValidationResult:
@@ -107,7 +107,7 @@ def main() -> None:
     result = validate_contract_tree()
     if not result.ok:
         raise SystemExit(f"contract validation failed: {result.message}")
-    print(f"contracts ok ({result.fixture_count} files)")
+    print(f"contracts ok ({result.file_count} files)")
 
 
 if __name__ == "__main__":
