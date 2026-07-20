@@ -90,7 +90,16 @@ OPS-102 remains whole: topology, consumer, publisher confirms, manual acknowledg
 - Improve: document squashed initialize commit for OPS-101 when git history is compact; use read-only `detect-secrets-hook` full-tracked verification (not `scan --baseline`) for evidence gates.
 - Sprint 1B handoff: new reviewed plan required for OPS-102 (whole messaging story) and OPS-104; CPS side needs CPS-103..106 plan before persistence/outbox work.
 
-## Implementation plan
+## Sprint 1B
+
+Sprint 1A is closed. Sprint 1B backlog: `plan/sprints/sprint-1b.md`.
+
+Executable implementation plan (review before code):
+
+- Canonical from workspace root: `cps/docs/superpowers/plans/2026-07-20-sprint-1b-persistence-operations-messaging.md`
+- OPS working copy: `docs/superpowers/plans/2026-07-20-sprint-1b-persistence-operations-messaging.md`
+
+## Implementation plan (Sprint 1A)
 
 - Canonical from workspace root: `cps/docs/superpowers/plans/2026-07-17-sprint-1-contracts-operations-messaging.md`
 - OPS working copy: `docs/superpowers/plans/2026-07-17-sprint-1-contracts-operations-messaging.md`
