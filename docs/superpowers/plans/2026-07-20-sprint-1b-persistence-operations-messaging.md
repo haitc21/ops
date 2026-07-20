@@ -72,7 +72,7 @@ flowchart TD
 | Engine | `create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)` |
 | Session factory | `async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)` |
 | UoW | `SqlAlchemyUnitOfWork` context manager: `async with uow:` → `commit()` on success, `rollback()` on exception; exposes `session` and domain repositories |
-| UUID | `uuid.uuid4()` generated in application; columns `UUID(as_uuid=True)`; PK default none (app assigns) |
+| UUID | Application-generated **UUIDv7** for CPS-created entity IDs (`providers.id`, `operations.id`, etc.); columns remain PostgreSQL `UUID` with **no DB default** because the application must assign IDs before INSERT. **`claim_token`** stays UUIDv4. Incoming external UUIDs (`message_id`, `correlation_id`, envelope IDs) are preserved as received. Python 3.12 has no stdlib UUIDv7; **Task 3** introduces a single tested boundary `cps.identifiers.new_uuid7()` (dependency-backed, not hand-rolled RFC 9562). **Task 2** does not add the generator or a migration — schema type is unchanged. |
 | Timestamps | `TIMESTAMP WITH TIME ZONE`; app sets UTC via `datetime.now(timezone.utc)`; DB default `now()` only where noted |
 | Optimistic lock | `version INTEGER NOT NULL DEFAULT 1`; UPDATE … WHERE id = :id AND version = :v; increment on success |
 | Naming | Tables plural snake_case; PK `pk_<table>`; FK `fk_<table>_<col>_<ref_table>`; unique `uq_<table>_<cols>`; index `ix_<table>_<cols>`; check `ck_<table>_<col>_<rule>` |
