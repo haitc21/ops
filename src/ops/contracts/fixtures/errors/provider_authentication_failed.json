@@ -1,0 +1,11 @@
+{
+  "code": "PROVIDER_AUTHENTICATION_FAILED",
+  "message": "OpenStack authentication failed",
+  "category": "AUTHENTICATION",
+  "retryable": false,
+  "provider": "OPENSTACK",
+  "provider_service": "identity",
+  "provider_request_id": "req-synthetic",
+  "details": {},
+  "occurred_at": "2026-07-17T00:00:03Z"
+}

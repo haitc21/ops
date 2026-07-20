@@ -1,0 +1,103 @@
+{
+  "properties": {
+    "message_id": {
+      "format": "uuid",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "message_type": {
+      "minLength": 1,
+      "title": "Message Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "correlation_id": {
+      "format": "uuid",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "causation_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Causation Id"
+    },
+    "operation_id": {
+      "format": "uuid",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotency Key"
+    },
+    "provider_id": {
+      "format": "uuid",
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "provider_connection_id": {
+      "format": "uuid",
+      "title": "Provider Connection Id",
+      "type": "string"
+    },
+    "credential_reference": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Credential Reference"
+    },
+    "trace_context": {
+      "additionalProperties": true,
+      "title": "Trace Context",
+      "type": "object"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    }
+  },
+  "required": [
+    "message_id",
+    "message_type",
+    "schema_version",
+    "occurred_at",
+    "correlation_id",
+    "operation_id",
+    "provider_id",
+    "provider_connection_id"
+  ],
+  "title": "MessageEnvelope",
+  "type": "object"
+}

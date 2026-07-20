@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "ErrorCategory": {
+      "enum": [
+        "VALIDATION",
+        "NOT_FOUND",
+        "CONFLICT",
+        "CAPABILITY",
+        "AUTHENTICATION",
+        "AUTHORIZATION",
+        "QUOTA",
+        "RATE_LIMIT",
+        "TIMEOUT",
+        "NETWORK",
+        "PROVIDER",
+        "INTERNAL"
+      ],
+      "title": "ErrorCategory",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "code": {
+      "title": "Code",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "category": {
+      "$ref": "#/$defs/ErrorCategory"
+    },
+    "retryable": {
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider"
+    },
+    "provider_service": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Service"
+    },
+    "provider_request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Request Id"
+    },
+    "details": {
+      "additionalProperties": true,
+      "title": "Details",
+      "type": "object"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "category",
+    "retryable"
+  ],
+  "title": "CommonError",
+  "type": "object"
+}

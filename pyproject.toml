@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ops"
+version = "0.1.0"
+description = "OpenStack Provider Service"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.139.0",
+  "pydantic==2.13.4",
+  "pydantic-settings>=2.13.0,<2.14",
+  "uvicorn[standard]>=0.35.0,<0.36",
+  "aio-pika==10.0.1",
+  "openstacksdk==4.17.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.0,<9",
+  "pytest-asyncio>=1.0.0,<2",
+  "httpx>=0.28.0,<0.29",
+  "ruff>=0.12.0,<0.13",
+  "mypy>=1.16.0,<2",
+  "detect-secrets>=1.5.0,<2",
+  "jsonschema[format]>=4.25,<5",
+  "types-jsonschema>=4.25,<5",
+]
+
+[project.scripts]
+ops = "ops.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ops"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "integration: tests that require local Compose dependencies",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["ops"]
+mypy_path = "src"
+warn_unused_configs = true

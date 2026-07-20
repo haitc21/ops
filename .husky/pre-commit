@@ -1,0 +1,32 @@
+run_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    uv "$@"
+  elif command -v py >/dev/null 2>&1; then
+    py -3.12 -m uv "$@"
+  else
+    python3 -m uv "$@"
+  fi
+}
+
+# Staged blobs must match the working tree before gates that read files from disk.
+run_uv run python .husky/assert_staged_worktree_sync.py
+guard_status=$?
+if [ "$guard_status" -ne 0 ]; then
+  exit "$guard_status"
+fi
+
+run_uv run ruff format --check src tests &&
+run_uv run ruff check src tests &&
+run_uv run mypy &&
+run_uv run pytest -q &&
+run_uv run python -m ops.contracts.validate_contracts || exit 1
+
+# Standalone CPS pin guard (no sibling checkout path).
+run_uv run python -c "from pathlib import Path; from ops.contracts.validate import assert_matches_cps_canonical; p=Path('src/ops/contracts'); assert_matches_cps_canonical(p/'cps_checksums.pinned.json', ops_root=p)" || exit 1
+
+# NUL-safe staged path iteration (spaces/tabs/newlines) for detect-secrets.
+run_uv run python .husky/run_detect_secrets_on_staged.py
+secrets_status=$?
+if [ "$secrets_status" -ne 0 ]; then
+  exit "$secrets_status"
+fi

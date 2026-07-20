@@ -1,0 +1,12 @@
+{
+  "files": {
+    "fixtures/commands/connection_validate.json": "401ef58f71aab9b083e0120c89e9b1e316db0ab8353e7dbe0e59bf57059f2a8a",
+    "fixtures/errors/provider_authentication_failed.json": "c11b4a015b3c02d06c6fbafcfe233f2473ddbe3ead671696d87a4c26c569c7b7",
+    "fixtures/events/inventory_batch.json": "3ab4d3a1402ef7f19380c89b1a53f754ad60bd303351f1c59b3c08a426dacd7d",
+    "fixtures/events/operation_completed.json": "de85e2879c3755e2a32622b420b796f8d70533d8004dedfe107e272988482cf9",
+    "fixtures/events/operation_failed.json": "2129123d2fbb4e9c868405a32b2738474833a3741dae173cbb7891e52994f87e",
+    "fixtures/events/operation_progress.json": "196e15b6bd2bf1b7c50e8404815b8de31cde897ca7cb04a649ce861cc90c0cb1",
+    "jsonschema/common_error.schema.json": "426ed52ff9025f1441bd05e89a019f69b0710799019477439ec634605301adc5",
+    "jsonschema/message_envelope.schema.json": "19fb555d3aad24b06183f3b15e64cd7e18e1b9fa7bd33c4cad4298ffeb6f1744"
+  }
+}
