@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import signal
 from collections.abc import Awaitable, Callable
@@ -11,17 +10,14 @@ from typing import Any, Protocol
 
 import aio_pika
 
+from ops.application.dispatch import build_dispatch_handler
 from ops.config import Settings
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.messaging.constants import (
     DEFAULT_RECONNECT_BACKOFF_SECONDS,
     DEFAULT_RECONNECT_MAX_BACKOFF_SECONDS,
 )
-from ops.messaging.consumer import (
-    CommandConsumer,
-    HandlerOutcome,
-    HandlerSuccess,
-)
+from ops.messaging.consumer import CommandConsumer, HandlerOutcome
 from ops.messaging.lifecycle import WorkerLifecycle
 from ops.messaging.publisher import ConfirmedPublisher
 from ops.messaging.topology import DeclaredTopology, TopologyBuilder
@@ -35,17 +31,16 @@ class TopologyBuilderProtocol(Protocol):
     async def declare(self, channel: Any) -> DeclaredTopology: ...
 
 
-async def stub_command_handler(
+_DISPATCH_HANDLER = build_dispatch_handler()
+
+
+async def default_command_handler(
     envelope: dict[str, Any],
     metadata: DeliveryMetadata,
     routing_key: str,
 ) -> HandlerOutcome:
-    """Task 8 placeholder until OPS-104 dispatch lands."""
-    _ = envelope, metadata, routing_key
-    return HandlerSuccess(
-        result_routing_key="cloud.operation.progress",
-        result_body=json.dumps({"status": "stub"}).encode(),
-    )
+    """Validate envelope and dispatch to the registered typed handler."""
+    return await _DISPATCH_HANDLER(envelope, metadata, routing_key)
 
 
 async def _close_channel(channel: Any | None) -> None:
@@ -206,7 +201,7 @@ async def run_worker(
                         publisher=ConfirmedPublisher(),
                         retry_exchange=topology.retry_exchange,
                         event_exchange=topology.event_exchange,
-                        handler=handler or stub_command_handler,
+                        handler=handler or default_command_handler,
                         channel=channel,
                     )
                     await consumer.start(channel, topology.command_queue)

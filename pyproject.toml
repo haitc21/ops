@@ -15,6 +15,7 @@ dependencies = [
   "uvicorn[standard]>=0.35.0,<0.36",
   "aio-pika==10.0.1",
   "openstacksdk==4.17.0",
+  "uuid6>=2024.7.10,<2025",
 ]
 
 [project.optional-dependencies]

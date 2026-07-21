@@ -21,6 +21,11 @@ def body_marker(body: bytes) -> str | None:
         marker = payload.get("marker")
         if isinstance(marker, str):
             return marker
+        inner = payload.get("payload")
+        if isinstance(payload, dict) and isinstance(inner, dict):
+            nested = inner.get("marker")
+            if isinstance(nested, str):
+                return nested
     return None
 
 
