@@ -11,12 +11,25 @@ from ops.config import Settings
 from ops.messaging.lifecycle import WorkerLifecycle
 
 
+class _FakeChannel:
+    async def close(self) -> None:
+        return None
+
+
 class _FakeConnection:
     def __init__(self) -> None:
         self.closed = False
 
+    async def channel(self, **_kwargs: Any) -> _FakeChannel:
+        return _FakeChannel()
+
     async def close(self) -> None:
         self.closed = True
+
+
+class _NoOpTopologyBuilder:
+    async def declare(self, channel: Any) -> None:
+        return None
 
 
 @pytest.mark.asyncio
@@ -40,7 +53,12 @@ async def test_run_worker_once_connects_rabbitmq_and_exits(
     )
     lifecycle = WorkerLifecycle()
 
-    await worker_runtime.run_worker(settings=settings, lifecycle=lifecycle, once=True)
+    await worker_runtime.run_worker(
+        settings=settings,
+        lifecycle=lifecycle,
+        once=True,
+        topology_builder=_NoOpTopologyBuilder(),
+    )
 
     assert connections == [settings.require_rabbitmq_url]
     assert lifecycle.accepting_work is False
@@ -67,6 +85,7 @@ async def test_run_worker_keeps_running_until_stop_event(
             lifecycle=lifecycle,
             once=False,
             stop_event=stop_event,
+            topology_builder=_NoOpTopologyBuilder(),
         )
     )
     await asyncio.sleep(0.05)
@@ -101,6 +120,7 @@ async def test_run_worker_cancellation_marks_shutdown(
             lifecycle=lifecycle,
             once=False,
             stop_event=stop_event,
+            topology_builder=_NoOpTopologyBuilder(),
         )
     )
     await asyncio.sleep(0.05)
