@@ -16,13 +16,21 @@ from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerO
 def build_default_registry(
     *,
     on_handler_call: Callable[[], None] | None = None,
+    freeze: bool = False,
 ) -> HandlerRegistry:
+    """Build a registry for tests or production.
+
+    Pass ``freeze=True`` for production-like immutability; test instrumentation
+    may use ``freeze=False`` to register additional handlers after build.
+    """
     registry = HandlerRegistry()
     registry.register(CONNECTION_VALIDATE, make_stub_connection_validate(on_call=on_handler_call))
+    if freeze:
+        registry.freeze()
     return registry
 
 
-_DEFAULT_REGISTRY = build_default_registry()
+_DEFAULT_REGISTRY = build_default_registry(freeze=True)
 
 
 async def dispatch_command(

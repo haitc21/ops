@@ -29,12 +29,17 @@ from ops.messaging.consumer import (
     HandlerSuccess,
 )
 from ops.messaging.lifecycle import WorkerLifecycle
+from ops.messaging.retry import parse_command_delivery_metadata
 
 COMMAND_FIXTURE = json.loads(
     Path("src/ops/contracts/fixtures/commands/connection_validate.json").read_text(
         encoding="utf-8",
     )
 )
+
+
+def command_delivery_metadata(**kwargs):
+    return parse_command_delivery_metadata(fresh_delivery_headers(**kwargs))
 
 
 @dataclass
@@ -55,7 +60,7 @@ async def test_valid_connection_validate_dispatches_once() -> None:
     )
     outcome = await dispatch_command(
         COMMAND_FIXTURE,
-        fresh_delivery_headers(),
+        command_delivery_metadata(),
         "openstack.connection.validate",
         registry=registry,
     )
@@ -73,7 +78,7 @@ async def test_unknown_message_type_rejects_without_handler() -> None:
     data["message_type"] = "openstack.unknown.command"
     outcome = await dispatch_command(
         data,
-        fresh_delivery_headers(),
+        command_delivery_metadata(),
         "openstack.connection.validate",
         registry=registry,
     )
@@ -92,7 +97,7 @@ async def test_unsupported_major_rejects_without_handler() -> None:
     data["schema_version"] = "2.0"
     outcome = await dispatch_command(
         data,
-        fresh_delivery_headers(),
+        command_delivery_metadata(),
         "openstack.connection.validate",
         registry=registry,
     )
@@ -110,7 +115,7 @@ async def test_invalid_envelope_rejects_without_handler() -> None:
     data.pop("operation_id")
     outcome = await dispatch_command(
         data,
-        fresh_delivery_headers(),
+        command_delivery_metadata(),
         "openstack.connection.validate",
         registry=registry,
     )
@@ -137,6 +142,72 @@ def test_registry_rejects_empty_message_type() -> None:
 
     with pytest.raises(ValueError, match="empty"):
         registry.register("", handler)
+
+
+def test_registry_rejects_register_after_freeze() -> None:
+    registry = HandlerRegistry()
+
+    async def handler(*_args):
+        return HandlerSuccess()
+
+    registry.register(CONNECTION_VALIDATE, handler)
+    registry.freeze()
+    with pytest.raises(RuntimeError, match="frozen"):
+        registry.register("openstack.other", handler)
+
+
+def test_default_registry_is_frozen() -> None:
+    from ops.application import dispatch as dispatch_module
+
+    assert dispatch_module._DEFAULT_REGISTRY.is_frozen is True
+
+    async def handler(*_args):
+        return HandlerSuccess()
+
+    with pytest.raises(RuntimeError, match="frozen"):
+        dispatch_module._DEFAULT_REGISTRY.register("openstack.other", handler)
+
+
+def test_build_default_registry_unfrozen_allows_register_without_callback() -> None:
+    registry = build_default_registry(freeze=False)
+
+    async def handler(*_args):
+        return HandlerSuccess()
+
+    assert registry.is_frozen is False
+    registry.register("openstack.other", handler)
+
+
+def test_build_default_registry_frozen_rejects_register() -> None:
+    registry = build_default_registry(freeze=True)
+
+    async def handler(*_args):
+        return HandlerSuccess()
+
+    assert registry.is_frozen is True
+    with pytest.raises(RuntimeError, match="frozen"):
+        registry.register("openstack.other", handler)
+
+
+def test_build_default_registry_callback_does_not_change_freeze_semantics() -> None:
+    instrumented = build_default_registry(
+        freeze=False,
+        on_handler_call=lambda: None,
+    )
+
+    async def handler(*_args):
+        return HandlerSuccess()
+
+    assert instrumented.is_frozen is False
+    instrumented.register("openstack.other", handler)
+
+    frozen = build_default_registry(
+        freeze=True,
+        on_handler_call=lambda: None,
+    )
+    assert frozen.is_frozen is True
+    with pytest.raises(RuntimeError, match="frozen"):
+        frozen.register("openstack.other", handler)
 
 
 def test_registry_lookup_has_no_side_effects() -> None:
@@ -173,6 +244,34 @@ async def test_validation_failure_consumer_rejects_without_retry() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handler_bug_after_validation_consumer_retries() -> None:
+    registry = HandlerRegistry()
+
+    async def flaky_handler(*_args):
+        raise RuntimeError("boom")
+
+    registry.register(CONNECTION_VALIDATE, flaky_handler)
+    publisher = FakePublisher()
+    consumer = CommandConsumer(
+        lifecycle=WorkerLifecycle(),
+        publisher=publisher,
+        retry_exchange=FakeExchange(name="retry"),
+        event_exchange=FakeExchange(name="event"),
+        handler=build_dispatch_handler(registry=registry),
+        channel=FakeChannel(),
+    )
+    message = FakeIncomingMessage(
+        body=json.dumps(COMMAND_FIXTURE).encode(),
+        headers=fresh_delivery_headers(attempt=1),
+    )
+    record = DeliveryProcessingRecord()
+    _, completed = await consumer.process_delivery(message, record)
+    assert completed is True
+    assert message.acked is True
+    assert publisher.publishes[0]["routing_key"] == "ops.command.retry.1"
+
+
+@pytest.mark.asyncio
 async def test_handler_bug_after_validation_still_retries() -> None:
     registry = HandlerRegistry()
 
@@ -183,7 +282,7 @@ async def test_handler_bug_after_validation_still_retries() -> None:
     with pytest.raises(RuntimeError, match="boom"):
         await dispatch_command(
             COMMAND_FIXTURE,
-            fresh_delivery_headers(attempt=1),
+            command_delivery_metadata(attempt=1),
             "openstack.connection.validate",
             registry=registry,
         )

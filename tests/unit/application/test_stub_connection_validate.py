@@ -23,6 +23,12 @@ def test_new_uuid7_is_version_7() -> None:
     assert new_uuid7().version == 7
 
 
+def test_new_uuid7_ids_are_monotonic() -> None:
+    first = new_uuid7()
+    second = new_uuid7()
+    assert second > first
+
+
 def test_build_progress_event_preserves_command_ids() -> None:
     command = MessageEnvelope.model_validate(COMMAND_FIXTURE)
     fixed_now = datetime(2026, 7, 17, 0, 0, 1, tzinfo=UTC)
@@ -61,6 +67,16 @@ def test_build_progress_event_copies_trace_context_without_alias() -> None:
     event = build_progress_event(command)
     event.trace_context["traceparent"] = "mutated"
     assert command.trace_context["traceparent"] == "00-abc-def-01"
+
+
+def test_build_progress_event_deep_copies_nested_trace_context() -> None:
+    command = MessageEnvelope.model_validate(COMMAND_FIXTURE)
+    command.trace_context["baggage"] = {"route": "alpha"}
+    event = build_progress_event(command)
+    nested = event.trace_context["baggage"]
+    assert isinstance(nested, dict)
+    nested["route"] = "mutated"
+    assert command.trace_context["baggage"]["route"] == "alpha"
 
 
 def test_build_progress_event_does_not_claim_provider_valid() -> None:

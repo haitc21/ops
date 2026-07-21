@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -36,7 +37,7 @@ def build_progress_event(
             "idempotency_key": None,
             "provider_id": str(command.provider_id),
             "provider_connection_id": str(command.provider_connection_id),
-            "trace_context": dict(command.trace_context),
+            "trace_context": copy.deepcopy(command.trace_context),
             "payload": {
                 "progress": 0,
                 "message": PROGRESS_MESSAGE,
