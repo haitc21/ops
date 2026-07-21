@@ -6,7 +6,9 @@
     "fixtures/events/operation_completed.json": "de85e2879c3755e2a32622b420b796f8d70533d8004dedfe107e272988482cf9",
     "fixtures/events/operation_failed.json": "2129123d2fbb4e9c868405a32b2738474833a3741dae173cbb7891e52994f87e",
     "fixtures/events/operation_progress.json": "196e15b6bd2bf1b7c50e8404815b8de31cde897ca7cb04a649ce861cc90c0cb1",
+    "fixtures/transport/retry_delivery.json": "297144c6254a9f68dad9a5e32b3997248c261cdb0ffe839ac3a8ac7260e2c945",
     "jsonschema/common_error.schema.json": "426ed52ff9025f1441bd05e89a019f69b0710799019477439ec634605301adc5",
+    "jsonschema/delivery_metadata.schema.json": "af4c76a94665d3afa259971fe2dd6888d8311921261a5f5f1ecd6bc711b11ac9",
     "jsonschema/message_envelope.schema.json": "19fb555d3aad24b06183f3b15e64cd7e18e1b9fa7bd33c4cad4298ffeb6f1744"
   }
 }

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeliveryMetadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "x-transport-version",
+    "x-message-id",
+    "x-correlation-id",
+    "x-attempt",
+    "x-max-attempts"
+  ],
+  "properties": {
+    "x-transport-version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "x-message-id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "x-correlation-id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "x-attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "x-max-attempts": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "x-retry-reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+    },
+    "x-original-routing-key": {
+      "type": "string",
+      "enum": [
+        "openstack.connection.validate",
+        "openstack.inventory.collect",
+        "openstack.inventory.refresh",
+        "openstack.instance.create",
+        "openstack.instance.get",
+        "openstack.instance.start",
+        "openstack.instance.stop",
+        "openstack.instance.reboot",
+        "openstack.instance.delete",
+        "cloud.connection.validation.progress",
+        "cloud.connection.validation.completed",
+        "cloud.connection.validation.failed",
+        "cloud.inventory.batch",
+        "cloud.inventory.completed",
+        "cloud.inventory.failed",
+        "cloud.operation.progress",
+        "cloud.operation.completed",
+        "cloud.operation.failed"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "x-attempt": {
+            "type": "integer",
+            "minimum": 2
+          }
+        },
+        "required": ["x-attempt"]
+      },
+      "then": {
+        "required": ["x-retry-reason", "x-original-routing-key"]
+      }
+    }
+  ]
+}
