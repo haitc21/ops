@@ -12,8 +12,22 @@ from ops.messaging.lifecycle import WorkerLifecycle
 
 
 class _FakeChannel:
+    def __init__(self) -> None:
+        self.close_callbacks: set[Any] = set()
+        self.closed = False
+
+    @property
+    def is_closed(self) -> bool:
+        return self.closed
+
     async def close(self) -> None:
+        self.closed = True
+        for callback in list(self.close_callbacks):
+            callback(self)
         return None
+
+    async def set_qos(self, prefetch_count: int = 0, **kwargs: Any) -> None:
+        _ = prefetch_count, kwargs
 
 
 class _FakeConnection:
@@ -28,8 +42,10 @@ class _FakeConnection:
 
 
 class _NoOpTopologyBuilder:
-    async def declare(self, channel: Any) -> None:
-        return None
+    async def declare(self, channel: Any):
+        from tests.unit.messaging.fakes import fake_declared_topology
+
+        return fake_declared_topology()
 
 
 @pytest.mark.asyncio
@@ -48,7 +64,7 @@ async def test_run_worker_once_connects_rabbitmq_and_exits(
 
     settings = Settings(
         environment="test",
-        rabbitmq_url="amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp",
+        rabbitmq_url="amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp",  # pragma: allowlist secret
         _env_file=None,
     )
     lifecycle = WorkerLifecycle()

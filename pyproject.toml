@@ -45,6 +45,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
   "integration: tests that require local Compose dependencies",
+  "integration_messaging: destructive RabbitMQ tests using disposable vhost",
 ]
 
 [tool.ruff]

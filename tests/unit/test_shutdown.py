@@ -34,3 +34,16 @@ def test_shutdown_nacks_unfinished_work() -> None:
     lifecycle.mark_in_flight("msg-2")
     lifecycle.begin_shutdown()
     assert lifecycle.finish_or_nack("msg-2", completed=False) == "nack"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_message_ids_remain_in_flight_until_both_finish() -> None:
+    lifecycle = WorkerLifecycle()
+    lifecycle.mark_in_flight("same-id")
+    lifecycle.mark_in_flight("same-id")
+
+    lifecycle.finish_or_nack("same-id", completed=True)
+    assert await lifecycle.wait_drained(0.01) is False
+
+    lifecycle.finish_or_nack("same-id", completed=True)
+    assert await lifecycle.wait_drained(0.01) is True

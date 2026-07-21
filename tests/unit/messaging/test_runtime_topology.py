@@ -18,9 +18,19 @@ class _FakeChannel:
     closed: bool = False
     declare_calls: int = 0
     fail_close: bool = False
+    close_callbacks: set[Any] = field(default_factory=set)
+
+    @property
+    def is_closed(self) -> bool:
+        return self.closed
+
+    async def set_qos(self, prefetch_count: int = 0, **kwargs: Any) -> None:
+        _ = prefetch_count, kwargs
 
     async def close(self) -> None:
         self.closed = True
+        for callback in list(self.close_callbacks):
+            callback(self)
         if self.fail_close:
             raise RuntimeError("channel close failed")
 
@@ -51,13 +61,18 @@ class _FakeTopologyBuilder:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.declare_calls = 0
+        self.declare_event = asyncio.Event()
 
-    async def declare(self, channel: _FakeChannel) -> None:
+    async def declare(self, channel: _FakeChannel):
+        from tests.unit.messaging.fakes import fake_declared_topology
+
         self.declare_calls += 1
         channel.declare_calls += 1
+        self.declare_event.set()
         if self.fail:
             msg = "topology declaration failed"
             raise RuntimeError(msg)
+        return fake_declared_topology()
 
 
 @pytest.mark.asyncio
@@ -92,6 +107,82 @@ async def test_run_worker_declares_topology_before_ready(monkeypatch: pytest.Mon
     stop_event.set()
     await asyncio.wait_for(task, timeout=1.0)
     assert connection.closed is True
+
+
+@pytest.mark.asyncio
+async def test_run_worker_reconnects_after_channel_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ops.messaging import runtime as worker_runtime
+
+    connection = _FakeConnection()
+    builder = _FakeTopologyBuilder()
+
+    async def fake_connect(url: str, **_kwargs: Any) -> _FakeConnection:
+        return connection
+
+    monkeypatch.setattr(worker_runtime.aio_pika, "connect_robust", fake_connect)
+    monkeypatch.setattr(worker_runtime, "DEFAULT_RECONNECT_BACKOFF_SECONDS", 0)
+
+    stop_event = asyncio.Event()
+    task = asyncio.create_task(
+        worker_runtime.run_worker(
+            settings=Settings(environment="test", _env_file=None),
+            once=False,
+            stop_event=stop_event,
+            topology_builder=builder,
+        )
+    )
+    await asyncio.wait_for(builder.declare_event.wait(), timeout=1.0)
+    assert builder.declare_calls == 1
+    builder.declare_event.clear()
+    await connection.channels[0].close()
+    await asyncio.wait_for(builder.declare_event.wait(), timeout=1.0)
+    assert builder.declare_calls >= 2
+
+    stop_event.set()
+    await asyncio.wait_for(task, timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_reconnect_backoff_resets_after_successful_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ops.messaging import runtime as worker_runtime
+
+    builder = _FakeTopologyBuilder()
+    connection = _FakeConnection()
+    connect_calls = 0
+    sleep_delays: list[float] = []
+    stop_event = asyncio.Event()
+
+    async def fake_connect(url: str, **_kwargs: Any) -> _FakeConnection:
+        nonlocal connect_calls
+        connect_calls += 1
+        if connect_calls == 1:
+            raise ConnectionError
+        return connection
+
+    async def fake_sleep(delay: float) -> None:
+        sleep_delays.append(delay)
+        if len(sleep_delays) == 2:
+            stop_event.set()
+
+    monkeypatch.setattr(worker_runtime.aio_pika, "connect_robust", fake_connect)
+    monkeypatch.setattr(worker_runtime.asyncio, "sleep", fake_sleep)
+
+    task = asyncio.create_task(
+        worker_runtime.run_worker(
+            settings=Settings(environment="test", _env_file=None),
+            stop_event=stop_event,
+            topology_builder=builder,
+        )
+    )
+    await asyncio.wait_for(builder.declare_event.wait(), timeout=1)
+    await connection.channels[0].close()
+    await asyncio.wait_for(task, timeout=1)
+
+    assert sleep_delays == [1.0, 1.0]
 
 
 @pytest.mark.asyncio
@@ -258,6 +349,39 @@ async def test_repeated_cancellation_waits_for_slow_resource_cleanup(
     close_release.set()
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, timeout=1)
+    assert connection.closed is True
+
+
+@pytest.mark.asyncio
+async def test_repeated_cancellation_during_consumer_stop_still_closes_resources() -> None:
+    from ops.messaging import runtime as worker_runtime
+
+    stop_started = asyncio.Event()
+    stop_release = asyncio.Event()
+    connection = _FakeConnection()
+
+    class SlowConsumer:
+        async def stop(self) -> None:
+            stop_started.set()
+            await stop_release.wait()
+
+    task = asyncio.create_task(
+        worker_runtime._cleanup_session(
+            consumer=SlowConsumer(),  # type: ignore[arg-type]
+            channel=None,
+            connection=connection,
+            primary_error=None,
+        )
+    )
+    await asyncio.wait_for(stop_started.wait(), timeout=1)
+    task.cancel()
+    task.cancel()
+    await asyncio.sleep(0)
+    assert task.done() is False
+
+    stop_release.set()
+    _, interrupted = await asyncio.wait_for(task, timeout=1)
+    assert interrupted is True
     assert connection.closed is True
 
 
