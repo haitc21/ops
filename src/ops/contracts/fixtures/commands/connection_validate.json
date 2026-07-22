@@ -12,11 +12,6 @@
   "credential_reference": "66666666-6666-4666-8666-666666666666",
   "trace_context": {},
   "payload": {
-    "auth_url": "https://example.test:5000/v3",
-    "user_domain_name": "Default",
-    "project_domain_name": "Default",
-    "project_id": "project-synthetic",
-    "region_name": "RegionOne",
-    "interface": "public"
+    "validation_mode": "SAFE_READ_ONLY"
   }
 }

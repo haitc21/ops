@@ -222,9 +222,9 @@ def test_build_completed_event_matches_canonical_payload_shape() -> None:
 def test_build_completed_event_isolates_default_from_mutation() -> None:
     command = MessageEnvelope.model_validate(COMMAND_FIXTURE)
     first = build_completed_event(command)
-    first.payload["result"]["capabilities"]["compute"] = False
+    first.payload["result"]["capabilities"]["services"]["compute"]["available"] = False
     second = build_completed_event(command)
-    assert second.payload["result"]["capabilities"]["compute"] is True
+    assert second.payload["result"]["capabilities"]["services"]["compute"]["available"] is True
 
 
 def test_build_completed_event_isolates_caller_result_from_mutation() -> None:
@@ -232,17 +232,29 @@ def test_build_completed_event_isolates_caller_result_from_mutation() -> None:
     caller_result: dict[str, Any] = {
         "status": "VALID",
         "capabilities": {
-            "compute": True,
-            "network": True,
-            "image": True,
-            "volume": True,
+            "schema_version": "1.0",
+            "services": {
+                "identity": {"available": True},
+                "compute": {"available": True},
+                "network": {"available": True},
+                "image": {"available": True},
+                "block_storage": {"available": True},
+            },
+            "features": {
+                "connection.authenticate": {"supported": True},
+                "service.identity": {"supported": True},
+                "service.compute": {"supported": True},
+                "service.network": {"supported": True},
+                "service.image": {"supported": True},
+                "service.block_storage": {"supported": True},
+            },
         },
     }
     first = build_completed_event(command, result=caller_result)
-    first.payload["result"]["capabilities"]["compute"] = False
-    assert caller_result["capabilities"]["compute"] is True
+    first.payload["result"]["capabilities"]["services"]["compute"]["available"] = False
+    assert caller_result["capabilities"]["services"]["compute"]["available"] is True
     second = build_completed_event(command, result=caller_result)
-    assert second.payload["result"]["capabilities"]["compute"] is True
+    assert second.payload["result"]["capabilities"]["services"]["compute"]["available"] is True
 
 
 def test_build_failed_event_matches_canonical_payload_shape() -> None:

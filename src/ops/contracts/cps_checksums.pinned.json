@@ -1,13 +1,15 @@
 {
   "files": {
-    "fixtures/commands/connection_validate.json": "8359333157c3e875e29965901f0b8a3fe9cbddd137352a40b88effc983a3c626",
+    "fixtures/commands/connection_validate.json": "f385ad33d4fd1ea27300cc6e5c5a3ef7ab588306caf0ebeed71c721aba097ec4",
     "fixtures/errors/provider_authentication_failed.json": "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b",
     "fixtures/events/inventory_batch.json": "2f131ebe9a44f965c0b0b315c11955ccf9efca8fef03bdd70c49dd62a6647b8c",
-    "fixtures/events/operation_completed.json": "b5509cba59284f2bfffcef4bbd44a44bf30a771d2201bdcbf62fe6059e67db7e",
+    "fixtures/events/operation_completed.json": "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295",
     "fixtures/events/operation_failed.json": "419f9d68b886963d8e52e662ed5648ef3ac541fd0a321ac0b0a1314d289ac923",
-    "fixtures/events/operation_progress.json": "28f58ceb7ef7c1d825ce55c70558ced991d9292a369fd11fa2a09c8fb68edbce",
+    "fixtures/events/operation_progress.json": "9da2af29181b0fcdd2578bdf15f408c4226d82675d452fbba9bb36daa74899e1",
     "fixtures/transport/retry_delivery.json": "f68a60bb709691a17dfd9f7f0daca679f3e676e482307b370e6dc278577a6dfd",
+    "jsonschema/capability_document.schema.json": "061c00c87b7b4d774646500936d1e3f727c2010250254bcf6719db3c672dd05c",
     "jsonschema/common_error.schema.json": "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e",
+    "jsonschema/credential_resolution.schema.json": "36a3b1a7c270f1e3c953b4953977ca011f16d178badf28b58bb11f95a5c60732",
     "jsonschema/delivery_metadata.schema.json": "a462b1dd6d10a72986d80f70ba6e2b6c98dde3b911eaa792bbfa8b612b2e63bf",
     "jsonschema/message_envelope.schema.json": "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655"
   }

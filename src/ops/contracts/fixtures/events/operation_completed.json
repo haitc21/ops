@@ -14,10 +14,22 @@
     "result": {
       "status": "VALID",
       "capabilities": {
-        "compute": true,
-        "network": true,
-        "image": true,
-        "volume": true
+        "schema_version": "1.0",
+        "services": {
+          "identity": {"available": true},
+          "compute": {"available": true, "min_version": "2.1", "max_version": "2.90"},
+          "network": {"available": true},
+          "image": {"available": true},
+          "block_storage": {"available": true}
+        },
+        "features": {
+          "connection.authenticate": {"supported": true},
+          "service.identity": {"supported": true},
+          "service.compute": {"supported": true},
+          "service.network": {"supported": true},
+          "service.image": {"supported": true},
+          "service.block_storage": {"supported": true}
+        }
       }
     }
   }

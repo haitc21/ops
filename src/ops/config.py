@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     rabbitmq_url: str | None = None
     cps_base_url: str | None = None
+    cps_timeout_seconds: int = 30
     openstack_timeout_seconds: int = 30
     openstack_verify_tls: bool = True
     api_host: str = "0.0.0.0"
@@ -54,6 +55,12 @@ class Settings(BaseSettings):
         if not self.rabbitmq_url:
             raise RuntimeError("rabbitmq_url is not configured")
         return self.rabbitmq_url
+
+    @property
+    def require_cps_base_url(self) -> str:
+        if not self.cps_base_url:
+            raise RuntimeError("cps_base_url is not configured")
+        return self.cps_base_url
 
 
 @lru_cache

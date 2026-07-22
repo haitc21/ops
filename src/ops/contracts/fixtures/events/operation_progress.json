@@ -12,6 +12,7 @@
   "trace_context": {},
   "payload": {
     "progress": 25,
+    "state": "WAITING_PROVIDER",
     "message": "validating service catalog"
   }
 }

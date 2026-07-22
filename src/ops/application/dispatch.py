@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from ops.application.handlers.connection_validate import make_connection_validate
 from ops.application.handlers.registry import HandlerRegistry
 from ops.application.handlers.stub_connection_validate import make_stub_connection_validate
 from ops.application.validation import EnvelopeReject, validate_command_envelope
+from ops.config import Settings
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.types import CONNECTION_VALIDATE
 from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerOutcome
@@ -27,6 +29,13 @@ def build_default_registry(
     registry.register(CONNECTION_VALIDATE, make_stub_connection_validate(on_call=on_handler_call))
     if freeze:
         registry.freeze()
+    return registry
+
+
+def build_production_registry(settings: Settings) -> HandlerRegistry:
+    registry = HandlerRegistry()
+    registry.register(CONNECTION_VALIDATE, make_connection_validate(settings))
+    registry.freeze()
     return registry
 
 

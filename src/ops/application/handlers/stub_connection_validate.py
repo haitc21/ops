@@ -28,10 +28,22 @@ PROGRESS_MESSAGE = "command accepted for dispatch validation"
 _DEFAULT_COMPLETED_RESULT: dict[str, Any] = {
     "status": "VALID",
     "capabilities": {
-        "compute": True,
-        "network": True,
-        "image": True,
-        "volume": True,
+        "schema_version": "1.0",
+        "services": {
+            "identity": {"available": True},
+            "compute": {"available": True, "min_version": "2.1", "max_version": "2.90"},
+            "network": {"available": True},
+            "image": {"available": True},
+            "block_storage": {"available": True},
+        },
+        "features": {
+            "connection.authenticate": {"supported": True},
+            "service.identity": {"supported": True},
+            "service.compute": {"supported": True},
+            "service.network": {"supported": True},
+            "service.image": {"supported": True},
+            "service.block_storage": {"supported": True},
+        },
     },
 }
 
@@ -85,6 +97,7 @@ def build_progress_event(
         message_type=OPERATION_PROGRESS,
         payload={
             "progress": 0,
+            "state": "RUNNING",
             "message": PROGRESS_MESSAGE,
         },
         now=now,

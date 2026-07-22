@@ -38,6 +38,7 @@ class HandlerSuccess:
     kind: Literal["success"] = "success"
     result_routing_key: str = ""
     result_body: bytes = b""
+    result_messages: tuple[tuple[str, bytes], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,11 +223,11 @@ class CommandConsumer:
     ) -> bool:
         if isinstance(outcome, HandlerSuccess | HandlerFailedResult):
             try:
-                await self.publisher.publish(
-                    self.event_exchange,
-                    outcome.result_routing_key,
-                    outcome.result_body,
+                messages = getattr(outcome, "result_messages", ()) or (
+                    (outcome.result_routing_key, outcome.result_body),
                 )
+                for routing_key, result_body in messages:
+                    await self.publisher.publish(self.event_exchange, routing_key, result_body)
             except PublishConfirmError:
                 if self.channel is not None:
                     await self.channel.close()

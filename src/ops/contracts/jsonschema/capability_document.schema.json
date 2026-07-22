@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "services", "features"],
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "services": {
+      "type": "object",
+      "required": ["identity", "compute", "network", "image", "block_storage"],
+      "additionalProperties": {"$ref": "#/$defs/service"}
+    },
+    "features": {
+      "type": "object",
+      "required": ["connection.authenticate", "service.identity", "service.compute", "service.network", "service.image", "service.block_storage"],
+      "additionalProperties": {"$ref": "#/$defs/feature"}
+    }
+  },
+  "$defs": {
+    "service": {"type": "object", "required": ["available"], "properties": {"available": {"type": "boolean"}, "min_version": {"type": ["string", "null"]}, "max_version": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}}},
+    "feature": {"type": "object", "required": ["supported"], "properties": {"supported": {"type": "boolean"}, "reason": {"type": ["string", "null"]}}}
+  }
+}

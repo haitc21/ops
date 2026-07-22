@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 import aio_pika
 
-from ops.application.dispatch import build_dispatch_handler
+from ops.application.dispatch import build_dispatch_handler, build_production_registry
 from ops.config import Settings
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.messaging.constants import (
@@ -160,6 +160,7 @@ async def run_worker(
     worker_lifecycle = lifecycle or WorkerLifecycle()
     connect_fn: ConnectFn = connect or aio_pika.connect_robust
     builder: TopologyBuilderProtocol = topology_builder or TopologyBuilder()
+    effective_handler = handler or build_dispatch_handler(build_production_registry(settings))
     stop = stop_event or asyncio.Event()
     primary_error: Exception | asyncio.CancelledError | None = None
     cleanup_interrupted = False
@@ -201,7 +202,7 @@ async def run_worker(
                         publisher=ConfirmedPublisher(),
                         retry_exchange=topology.retry_exchange,
                         event_exchange=topology.event_exchange,
-                        handler=handler or default_command_handler,
+                        handler=effective_handler,
                         channel=channel,
                     )
                     await consumer.start(channel, topology.command_queue)

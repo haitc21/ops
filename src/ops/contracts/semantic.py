@@ -12,6 +12,7 @@ from pydantic import ValidationError as PydanticValidationError
 from ops.contracts.errors import CommonError
 from ops.contracts.messages.delivery import DeliveryMetadata, assert_strict_wire_header_types
 from ops.contracts.messages.envelope import MessageEnvelope
+from ops.contracts.validation import validate_validation_event
 
 _FORBIDDEN_SECRET_TOKENS = ("password", "token", "authorization", "user_data", "private_key")
 _ENVELOPE_PREFIXES = ("fixtures/commands/", "fixtures/events/")
@@ -61,11 +62,25 @@ def _validate_envelope_fixture(
         validator.validate(raw)
     except ValidationError:
         return f"fixture failed JSON Schema validation: {label}"
+    message_type = raw.get("message_type")
     if label.startswith("fixtures/commands/"):
         if "credential_reference" not in raw:
             return f"command fixture missing credential_reference: {label}"
+        if message_type == "openstack.connection.validate" and raw.get("payload") != {
+            "validation_mode": "SAFE_READ_ONLY"
+        }:
+            return f"validation command payload is not canonical: {label}"
     elif "credential_reference" in raw:
         return f"event fixture must omit credential_reference: {label}"
+    message_type = raw.get("message_type")
+    if isinstance(message_type, str) and (
+        message_type.startswith("cloud.connection.validation.")
+        or message_type.startswith("cloud.operation.")
+    ):
+        try:
+            validate_validation_event(raw)
+        except (TypeError, ValueError):
+            return f"fixture failed validation event semantics: {label}"
     return None
 
 

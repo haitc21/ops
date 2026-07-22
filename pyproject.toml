@@ -15,6 +15,7 @@ dependencies = [
   "uvicorn[standard]>=0.35.0,<0.36",
   "aio-pika==10.0.1",
   "openstacksdk==4.17.0",
+  "httpx>=0.28.0,<0.29",
   "uuid6>=2025.0.1,<2026",
 ]
 
