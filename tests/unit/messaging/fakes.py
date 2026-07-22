@@ -17,9 +17,14 @@ class FakeIncomingMessage:
     acked: bool = False
     rejected: bool = False
     reject_requeue: bool | None = None
+    ack_count: int = 0
+    action_log: list[str] | None = None
 
     async def ack(self, multiple: bool = False) -> None:
         self.acked = True
+        self.ack_count += 1
+        if self.action_log is not None:
+            self.action_log.append("ack")
 
     async def reject(self, requeue: bool = False) -> None:
         self.rejected = True
@@ -47,6 +52,7 @@ class FakeExchange:
 class FakePublisher:
     publishes: list[dict[str, Any]] = field(default_factory=list)
     fail_at_index: int | None = None
+    action_log: list[str] | None = None
 
     async def publish(
         self,
@@ -61,6 +67,8 @@ class FakePublisher:
         from ops.messaging.publisher import PublishConfirmError
 
         if self.fail_at_index == len(self.publishes):
+            if self.action_log is not None:
+                self.action_log.append("publish_confirm_failed")
             raise PublishConfirmError("simulated_confirm_failure")
         self.publishes.append(
             {
@@ -70,18 +78,25 @@ class FakePublisher:
                 "headers": headers or {},
             }
         )
+        if self.action_log is not None:
+            self.action_log.append("publish_confirmed")
 
 
 @dataclass
 class FakeChannel:
     closed: bool = False
+    close_count: int = 0
     prefetch: int | None = None
+    action_log: list[str] | None = None
 
     async def set_qos(self, prefetch_count: int = 0, **kwargs: Any) -> None:
         self.prefetch = prefetch_count
 
     async def close(self) -> None:
         self.closed = True
+        self.close_count += 1
+        if self.action_log is not None:
+            self.action_log.append("channel_close")
 
 
 def fresh_delivery_headers(

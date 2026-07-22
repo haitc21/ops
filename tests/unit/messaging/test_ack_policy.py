@@ -9,9 +9,12 @@ from typing import Any
 import pytest
 
 from ops.contracts.errors import CommonError, ErrorCategory
+from ops.contracts.messages.envelope import MessageEnvelope
+from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED
 from ops.messaging.consumer import (
     CommandConsumer,
     DeliveryProcessingRecord,
+    HandlerFailedResult,
     HandlerNonRetryableError,
     HandlerRetryableError,
     HandlerSuccess,
@@ -28,41 +31,70 @@ from tests.unit.messaging.fakes import (
 )
 
 
+def _minimal_command_envelope() -> dict[str, Any]:
+    return {
+        "message_id": "11111111-1111-4111-8111-111111111111",
+        "message_type": "openstack.connection.validate",
+        "schema_version": "1.0",
+        "occurred_at": "2026-07-17T00:00:00Z",
+        "correlation_id": "22222222-2222-4222-8222-222222222222",
+        "causation_id": None,
+        "operation_id": "33333333-3333-4333-8333-333333333333",
+        "idempotency_key": "validate-conn-test-001",
+        "provider_id": "44444444-4444-4444-8444-444444444444",
+        "provider_connection_id": "55555555-5555-4555-8555-555555555555",
+        "trace_context": {},
+        "payload": {},
+    }
+
+
+def _serialize_message_envelope(event: MessageEnvelope) -> bytes:
+    return json.dumps(
+        event.model_dump(mode="json", exclude_none=True),
+        separators=(",", ":"),
+    ).encode()
+
+
 def _consumer(
     handler,
     *,
     publisher: FakePublisher | None = None,
+    action_log: list[str] | None = None,
 ) -> CommandConsumer:
     return CommandConsumer(
         lifecycle=WorkerLifecycle(),
-        publisher=publisher or FakePublisher(),
+        publisher=publisher or FakePublisher(action_log=action_log),
         retry_exchange=FakeExchange(name="cmp.cloud.retry.v1"),
         event_exchange=FakeExchange(name="cmp.cloud.event.v1"),
         handler=handler,
-        channel=FakeChannel(),
+        channel=FakeChannel(action_log=action_log),
     )
 
 
 @pytest.mark.asyncio
 async def test_success_publishes_result_then_acks() -> None:
-    publisher = FakePublisher()
+    action_log: list[str] = []
+    publisher = FakePublisher(action_log=action_log)
     consumer = _consumer(
         lambda *_args: _async_success(),
         publisher=publisher,
+        action_log=action_log,
     )
     message = FakeIncomingMessage(
         body=json.dumps({"message_type": "command"}).encode(),
         headers=fresh_delivery_headers(),
+        action_log=action_log,
     )
     record = DeliveryProcessingRecord()
     _, completed = await consumer.process_delivery(message, record)
 
     assert completed is True
-    assert message.acked is True
+    assert message.ack_count == 1
     assert message.rejected is False
     assert record.result_published is True
     assert len(publisher.publishes) == 1
     assert publisher.publishes[0]["routing_key"] == "cloud.operation.progress"
+    assert action_log == ["publish_confirmed", "ack"]
 
 
 async def _async_success() -> HandlerSuccess:
@@ -70,6 +102,107 @@ async def _async_success() -> HandlerSuccess:
         result_routing_key="cloud.operation.progress",
         result_body=b"{}",
     )
+
+
+async def _async_terminal_event_outcome(
+    envelope: dict[str, Any],
+    *,
+    message_type: str,
+) -> HandlerSuccess | HandlerFailedResult:
+    from ops.application.handlers.stub_connection_validate import (
+        build_completed_event,
+        build_failed_event,
+    )
+
+    command = MessageEnvelope.model_validate(envelope)
+    if message_type == OPERATION_COMPLETED:
+        event = build_completed_event(command)
+        return HandlerSuccess(
+            result_routing_key=event.message_type,
+            result_body=_serialize_message_envelope(event),
+        )
+    event = build_failed_event(command)
+    return HandlerFailedResult(
+        result_routing_key=event.message_type,
+        result_body=_serialize_message_envelope(event),
+    )
+
+
+@pytest.mark.parametrize(
+    "message_type",
+    [OPERATION_COMPLETED, OPERATION_FAILED],
+)
+@pytest.mark.asyncio
+async def test_terminal_event_publish_confirmed_then_exactly_one_ack(
+    message_type: str,
+) -> None:
+    action_log: list[str] = []
+    publisher = FakePublisher(action_log=action_log)
+    handler_calls = 0
+
+    async def handler(
+        envelope: dict[str, Any], *_args: Any
+    ) -> HandlerSuccess | HandlerFailedResult:
+        nonlocal handler_calls
+        handler_calls += 1
+        return await _async_terminal_event_outcome(envelope, message_type=message_type)
+
+    consumer = _consumer(handler, publisher=publisher, action_log=action_log)
+    message = FakeIncomingMessage(
+        body=json.dumps(_minimal_command_envelope()).encode(),
+        headers=fresh_delivery_headers(),
+        action_log=action_log,
+    )
+    record = DeliveryProcessingRecord()
+    _, completed = await consumer.process_delivery(message, record)
+
+    assert completed is True
+    assert handler_calls == 1
+    assert message.ack_count == 1
+    assert record.result_published is True
+    assert record.terminal_action_count == 1
+    assert len(publisher.publishes) == 1
+    published = publisher.publishes[0]
+    event = json.loads(published["body"])
+    assert published["routing_key"] == message_type
+    assert published["routing_key"] == event["message_type"]
+    assert action_log == ["publish_confirmed", "ack"]
+
+
+@pytest.mark.parametrize(
+    "message_type",
+    [OPERATION_COMPLETED, OPERATION_FAILED],
+)
+@pytest.mark.asyncio
+async def test_terminal_event_confirm_failure_zero_acks(message_type: str) -> None:
+    action_log: list[str] = []
+    publisher = FakePublisher(fail_at_index=0, action_log=action_log)
+    handler_calls = 0
+
+    async def handler(
+        envelope: dict[str, Any], *_args: Any
+    ) -> HandlerSuccess | HandlerFailedResult:
+        nonlocal handler_calls
+        handler_calls += 1
+        return await _async_terminal_event_outcome(envelope, message_type=message_type)
+
+    consumer = _consumer(handler, publisher=publisher, action_log=action_log)
+    message = FakeIncomingMessage(
+        body=json.dumps(_minimal_command_envelope()).encode(),
+        headers=fresh_delivery_headers(),
+        action_log=action_log,
+    )
+    record = DeliveryProcessingRecord()
+    _, completed = await consumer.process_delivery(message, record)
+
+    assert completed is False
+    assert handler_calls == 1
+    assert message.ack_count == 0
+    assert record.result_published is False
+    assert record.channel_closed is True
+    assert record.terminal_action_count == 1
+    assert len(publisher.publishes) == 0
+    assert action_log == ["publish_confirm_failed", "channel_close"]
 
 
 @pytest.mark.asyncio
