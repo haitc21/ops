@@ -7,12 +7,21 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 OPERATIONAL_EXIT_CODE = 2
+TEMP_BASELINE_OPERATIONAL_MESSAGE = "temporary baseline operation failed"
+BASELINE_PATH = Path(".secrets.baseline")
+BASELINE_STAGED_PATH = BASELINE_PATH.as_posix()
 
 
 class GitDiffOperationalError(RuntimeError):
     """Raised when listing staged paths fails operationally."""
+
+
+class BaselineOperationalError(RuntimeError):
+    """Raised when the secrets baseline cannot be read."""
 
 
 def fsdecode_path(data: bytes) -> str:
@@ -46,17 +55,27 @@ def staged_secret_scan_paths() -> list[str]:
         if text:
             detail = f"{detail}: {text}"
         raise GitDiffOperationalError(detail)
-    return split_nul_paths(completed.stdout)
+    baseline = BASELINE_STAGED_PATH
+    return [path for path in split_nul_paths(completed.stdout) if path != baseline]
 
 
-def _detect_secrets_command(path: str) -> list[str]:
+def _read_baseline_bytes() -> bytes:
+    try:
+        return BASELINE_PATH.read_bytes()
+    except FileNotFoundError:
+        raise BaselineOperationalError(f"baseline not found: {BASELINE_PATH}") from None
+    except OSError:
+        raise BaselineOperationalError(f"baseline unreadable: {BASELINE_PATH}") from None
+
+
+def _detect_secrets_command(baseline_path: str, path: str) -> list[str]:
     if shutil.which("uv"):
         return [
             "uv",
             "run",
             "detect-secrets-hook",
             "--baseline",
-            ".secrets.baseline",
+            baseline_path,
             path,
         ]
     if shutil.which("py"):
@@ -68,7 +87,7 @@ def _detect_secrets_command(path: str) -> list[str]:
             "run",
             "detect-secrets-hook",
             "--baseline",
-            ".secrets.baseline",
+            baseline_path,
             path,
         ]
     return [
@@ -78,7 +97,7 @@ def _detect_secrets_command(path: str) -> list[str]:
         "run",
         "detect-secrets-hook",
         "--baseline",
-        ".secrets.baseline",
+        baseline_path,
         path,
     ]
 
@@ -90,14 +109,36 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return OPERATIONAL_EXIT_CODE
 
-    for path in paths:
-        completed = subprocess.run(
-            _detect_secrets_command(path),
-            check=False,
-            env=os.environ.copy(),
-        )
-        if completed.returncode != 0:
-            return completed.returncode
+    try:
+        baseline_bytes = _read_baseline_bytes()
+    except BaselineOperationalError as exc:
+        print(str(exc), file=sys.stderr)
+        return OPERATIONAL_EXIT_CODE
+
+    child_exit: int | None = None
+    try:
+        with TemporaryDirectory() as tmpdir:
+            temp_baseline = Path(tmpdir) / "secrets.baseline"
+            temp_baseline.write_bytes(baseline_bytes)
+            temp_baseline_str = str(temp_baseline)
+
+            for path in paths:
+                completed = subprocess.run(
+                    _detect_secrets_command(temp_baseline_str, path),
+                    check=False,
+                    env=os.environ.copy(),
+                )
+                if completed.returncode != 0:
+                    child_exit = completed.returncode
+                    break
+    except OSError:
+        print(TEMP_BASELINE_OPERATIONAL_MESSAGE, file=sys.stderr)
+        if child_exit is not None:
+            return child_exit
+        return OPERATIONAL_EXIT_CODE
+
+    if child_exit is not None:
+        return child_exit
     return 0
 
 

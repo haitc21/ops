@@ -327,10 +327,128 @@ def test_secret_list_operational_error_exit_2(
     assert "Traceback" not in err
 
 
+def _baseline_arg(cmd: list[str]) -> str:
+    idx = cmd.index("--baseline")
+    return cmd[idx + 1]
+
+
+def _synthetic_baseline(tmp_path: Path) -> Path:
+    baseline = tmp_path / ".secrets.baseline"
+    baseline.write_text('{"version":"1.5.0","results":{"sample.py":[]}}\n', encoding="utf-8")
+    return baseline
+
+
+def _patch_runner_baseline(
+    monkeypatch: pytest.MonkeyPatch, runner: ModuleType, baseline: Path
+) -> bytes:
+    original_bytes = baseline.read_bytes()
+    monkeypatch.setattr(runner, "BASELINE_PATH", baseline)
+    return original_bytes
+
+
+REDACTION_CANARY_VALUE = "redaction-canary-fixture-value"
+
+
+def _assert_operational_stderr(err: str, *, redaction_canary: str) -> None:
+    assert "Traceback" not in err
+    assert "Direct cause" not in err
+    assert "During handling" not in err
+    assert redaction_canary not in err
+    assert "canary_payload" not in err
+
+
+def test_staged_baseline_excluded_from_secret_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_exclude_baseline")
+    baseline = _synthetic_baseline(tmp_path)
+    _patch_runner_baseline(monkeypatch, runner, baseline)
+    recorded: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if cmd[:3] == ["git", "diff", "--cached"]:
+            return subprocess.CompletedProcess(cmd, 0, b".secrets.baseline\0normal.py\0", b"")
+        recorded.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    assert runner.main() == 0
+    assert len(recorded) == 1
+    assert recorded[0][-1] == "normal.py"
+
+
+def test_detect_secrets_passes_temp_baseline_to_every_child(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_temp_baseline")
+    baseline = _synthetic_baseline(tmp_path)
+    _patch_runner_baseline(monkeypatch, runner, baseline)
+    recorded: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        recorded.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "staged_secret_scan_paths", lambda: ["a.py", "b.py"])
+    assert runner.main() == 0
+    assert len(recorded) == 2
+    baseline_paths = [_baseline_arg(cmd) for cmd in recorded]
+    assert baseline_paths[0] == baseline_paths[1]
+    for baseline_path in baseline_paths:
+        assert baseline_path != ".secrets.baseline"
+        assert Path(baseline_path).resolve() != baseline.resolve()
+
+
+def _sandboxed_tempdir_factory(sandbox_root: Path):
+    from tempfile import TemporaryDirectory as RealTemporaryDirectory
+
+    def factory(*args: object, **kwargs: object) -> RealTemporaryDirectory:
+        kwargs = dict(kwargs)
+        kwargs["dir"] = str(sandbox_root)
+        return RealTemporaryDirectory(*args, **kwargs)
+
+    return factory
+
+
+def test_malicious_child_cannot_alter_committed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_malicious")
+    baseline = _synthetic_baseline(tmp_path)
+    original_bytes = _patch_runner_baseline(monkeypatch, runner, baseline)
+    sandbox_root = tmp_path.resolve()
+    committed_baseline = (ROOT / ".secrets.baseline").resolve()
+
+    monkeypatch.setattr(
+        runner,
+        "TemporaryDirectory",
+        _sandboxed_tempdir_factory(sandbox_root),
+    )
+
+    def malicious_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        target = Path(_baseline_arg(cmd)).resolve()
+        assert target.is_relative_to(sandbox_root)
+        assert target != baseline.resolve()
+        assert target != committed_baseline
+        target.write_text('{"results": {"hacked": true}}', encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", malicious_run)
+    monkeypatch.setattr(runner, "staged_secret_scan_paths", lambda: ["file.py"])
+    assert runner.main() == 0
+    assert baseline.read_bytes() == original_bytes
+
+
 def test_detect_secrets_runner_preserves_space_tab_newline(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     runner = _load_module(SECRETS_RUNNER, "secrets_argv")
+    _patch_runner_baseline(monkeypatch, runner, _synthetic_baseline(tmp_path))
     weird = "dir/a file\twith\nnewline.py"
     recorded: list[list[str]] = []
 
@@ -343,6 +461,208 @@ def test_detect_secrets_runner_preserves_space_tab_newline(
     assert runner.main() == 0
     assert recorded[0][-1] == weird
     assert recorded[1][-1] == "normal.py"
+
+
+@pytest.mark.parametrize("child_exit", (1, 2, 3))
+def test_detect_secrets_preserves_child_exit_code_and_stops_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    child_exit: int,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, f"secrets_exit_{child_exit}")
+    _patch_runner_baseline(monkeypatch, runner, _synthetic_baseline(tmp_path))
+    recorded: list[list[str]] = []
+    call_count = 0
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        nonlocal call_count
+        call_count += 1
+        recorded.append(list(cmd))
+        if call_count == 1:
+            return subprocess.CompletedProcess(cmd, child_exit, b"", b"")
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "staged_secret_scan_paths",
+        lambda: ["first.py", "second.py", "third.py"],
+    )
+    assert runner.main() == child_exit
+    assert len(recorded) == 1
+    assert recorded[0][-1] == "first.py"
+
+
+def test_missing_baseline_fails_operationally_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_missing_baseline")
+    missing = tmp_path / ".secrets.baseline"
+    redaction_canary = REDACTION_CANARY_VALUE
+    present = tmp_path / "present.baseline"
+    present.write_text(f'{{"canary_payload":"{redaction_canary}"}}\n', encoding="utf-8")
+
+    monkeypatch.setattr(runner, "BASELINE_PATH", missing)
+    monkeypatch.setattr(runner, "staged_secret_scan_paths", lambda: ["file.py"])
+    assert runner.main() == 2
+    _assert_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
+    assert present.read_bytes() == f'{{"canary_payload":"{redaction_canary}"}}\n'.encode()
+
+
+def test_unreadable_baseline_fails_operationally_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_unreadable_baseline")
+    unreadable = tmp_path / ".secrets.baseline"
+    unreadable.mkdir()
+    redaction_canary = REDACTION_CANARY_VALUE
+    present = tmp_path / "present.baseline"
+    present.write_text(f'{{"canary_payload":"{redaction_canary}"}}\n', encoding="utf-8")
+
+    monkeypatch.setattr(runner, "BASELINE_PATH", unreadable)
+    monkeypatch.setattr(runner, "staged_secret_scan_paths", lambda: ["file.py"])
+    assert runner.main() == 2
+    _assert_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
+    assert present.read_bytes() == f'{{"canary_payload":"{redaction_canary}"}}\n'.encode()
+
+
+TEMP_OPERATIONAL_MARKER = "temporary baseline operation failed"
+
+
+def _assert_temp_operational_stderr(err: str, *, redaction_canary: str) -> None:
+    _assert_operational_stderr(err, redaction_canary=redaction_canary)
+    assert TEMP_OPERATIONAL_MARKER in err
+    assert "No space left" not in err
+    assert "secrets.baseline" not in err
+
+
+def _failing_tempdir_factory(*, fail_enter: bool = False, fail_exit: bool = False):
+    from tempfile import TemporaryDirectory as RealTemporaryDirectory
+
+    def factory(*args: object, **kwargs: object) -> object:
+        if fail_enter:
+
+            class EnterFailure:
+                def __enter__(self) -> str:
+                    raise OSError(28, "No space left on device")
+
+                def __exit__(self, *_args: object) -> bool:
+                    return False
+
+            return EnterFailure()
+
+        real = RealTemporaryDirectory(*args, **kwargs)
+
+        class Wrapper:
+            def __enter__(self) -> str:
+                return real.__enter__()
+
+            def __exit__(self, *exit_args: object) -> bool:
+                real.__exit__(*exit_args)
+                if fail_exit:
+                    raise OSError(28, "No space left on device")
+                return False
+
+        return Wrapper()
+
+    return factory
+
+
+def _patch_runner_for_temp_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    runner: ModuleType,
+    tmp_path: Path,
+) -> str:
+    baseline = _synthetic_baseline(tmp_path)
+    redaction_canary = REDACTION_CANARY_VALUE
+    baseline.write_text(
+        f'{{"version":"1.5.0","canary_payload":"{redaction_canary}","results":{{}}}}\n',
+        encoding="utf-8",
+    )
+    _patch_runner_baseline(monkeypatch, runner, baseline)
+    monkeypatch.setattr(runner, "staged_secret_scan_paths", lambda: ["file.py"])
+    return redaction_canary
+
+
+def test_temp_directory_creation_failure_exit_2(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_tempdir_create_fail")
+    redaction_canary = _patch_runner_for_temp_tests(monkeypatch, runner, tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "TemporaryDirectory",
+        _failing_tempdir_factory(fail_enter=True),
+    )
+    assert runner.main() == 2
+    _assert_temp_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
+
+
+def test_temp_baseline_write_failure_exit_2(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_temp_baseline_write_fail")
+    redaction_canary = _patch_runner_for_temp_tests(monkeypatch, runner, tmp_path)
+    original_write_bytes = Path.write_bytes
+
+    def fail_temp_write(self: Path, data: bytes) -> int:
+        if self.name == "secrets.baseline":
+            raise OSError(28, "No space left on device")
+        return original_write_bytes(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", fail_temp_write)
+    assert runner.main() == 2
+    _assert_temp_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
+
+
+def test_temp_directory_cleanup_failure_after_success_exit_2(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_tempdir_cleanup_success")
+    redaction_canary = _patch_runner_for_temp_tests(monkeypatch, runner, tmp_path)
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "TemporaryDirectory",
+        _failing_tempdir_factory(fail_exit=True),
+    )
+    assert runner.main() == 2
+    _assert_temp_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
+
+
+def test_temp_directory_cleanup_failure_preserves_child_exit_1(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    runner = _load_module(SECRETS_RUNNER, "secrets_tempdir_cleanup_child1")
+    redaction_canary = _patch_runner_for_temp_tests(monkeypatch, runner, tmp_path)
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(cmd, 1, b"", b"")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "TemporaryDirectory",
+        _failing_tempdir_factory(fail_exit=True),
+    )
+    assert runner.main() == 1
+    _assert_temp_operational_stderr(capsys.readouterr().err, redaction_canary=redaction_canary)
 
 
 def test_fsdecode_surrogateescape_roundtrip() -> None:

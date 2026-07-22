@@ -13,33 +13,46 @@ Canonical design lives in the sibling CPS repository:
 
 ## Setup
 
-```powershell
-py -3.12 -m uv sync --all-extras --frozen
+```bash
+uv sync --all-extras --frozen
 ```
 
 ## Run
 
-```powershell
-py -3.12 -m uv run ops serve --host 127.0.0.1 --port 8001
-py -3.12 -m uv run ops worker --once
+```bash
+uv run ops serve --host 127.0.0.1 --port 8001
+uv run ops worker --once
 ```
 
 ## Quality gates
 
-```powershell
-py -3.12 -m uv sync --frozen --all-extras
-py -3.12 -m uv run ruff format --check src tests
-py -3.12 -m uv run ruff check src tests
-py -3.12 -m uv run mypy
-py -3.12 -m uv run pytest -q
-py -3.12 -m uv run python -m ops.contracts.validate_contracts
-py -3.12 -m uv run python -m ops.contracts.write_manifest
-py -3.12 -m uv run python -m detect_secrets scan --baseline .secrets.baseline --exclude-files "(?i)(.*\.venv/.*|.*uv\.lock$|.*\.git/.*|(.*/)?(checksums|cps_checksums\.pinned)\.json$)"
+```bash
+uv sync --frozen --all-extras
+uv run ruff format --check src tests
+uv run ruff check src tests
+uv run mypy
+uv run pytest -q
+uv run python -m ops.contracts.validate_contracts
 ```
+
+Staged read-only secret verification runs via `bash .husky/pre-commit` (install
+with `npm install`). Do not use `detect-secrets scan --baseline` as a
+verification command.
 
 Integration tests against RabbitMQ are opt-in:
 
-```powershell
-$env:OPS_RUN_INTEGRATION="1"
-py -3.12 -m uv run pytest -q
+```bash
+OPS_RUN_INTEGRATION=1 uv run pytest -q
 ```
+
+Windows (Python launcher): use `py -3.12 -m uv` instead of `uv`; set integration with `$env:OPS_RUN_INTEGRATION="1"`.
+
+## Contract maintenance
+
+After changing manifest-managed contract files:
+
+```bash
+uv run python -m ops.contracts.write_manifest
+```
+
+Commit the updated checksum manifest explicitly. This is not a verification gate.
