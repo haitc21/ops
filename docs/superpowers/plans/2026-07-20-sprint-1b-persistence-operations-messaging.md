@@ -1,6 +1,6 @@
 # Sprint 1B Persistence, Operations, and Messaging Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Do not start Sprint 1C from this document.
+> **For agentic workers:** Sprint 1B is **closed** (2026-07-22). Tasks 1–12 and Definition of Done are complete; see §Sprint 1B closure evidence. Do not start Sprint 1C from this document.
 
 **Goal:** Deliver PostgreSQL persistence with Alembic migrations and async unit-of-work, an operation state machine with immutable history and idempotent creation, a transactional outbox and inbox on CPS, and a complete RabbitMQ runtime with envelope validation and handler dispatch on OPS — without provider CRUD APIs, OpenStack calls, credential resolution, or CMP/LMS/Keycloak/TMS integration.
 
@@ -486,7 +486,7 @@ Integration tests cover each row, exact-one destination, retry tier boundaries, 
 - Modify `src/cps/infrastructure/health.py` and `tests/unit/test_db_url.py` only as needed to preserve `from cps.infrastructure.db import to_psycopg_conninfo`
 - Create `tests/unit/infrastructure/test_unit_of_work.py`
 
-- [ ] **Step 1: Write failing UoW rollback test**
+- [x] **Step 1: Write failing UoW rollback test**
 
 ```python
 # tests/unit/infrastructure/test_unit_of_work.py
@@ -502,15 +502,15 @@ async def test_unit_of_work_rolls_back_on_exception():
 
 **RED:** `uv run pytest tests/unit/infrastructure/test_unit_of_work.py -q` → ImportError / no UoW.
 
-- [ ] **Step 2: Implement engine + session + UoW**
+- [x] **Step 2: Implement engine + session + UoW**
 
 Use `create_async_engine(settings.require_database_url)`. `SqlAlchemyUnitOfWork.__aexit__` rolls back on exception and never suppresses it.
 
-- [ ] **Step 3: GREEN**
+- [x] **Step 3: GREEN**
 
 `uv run pytest tests/unit/infrastructure/test_unit_of_work.py -q` → pass.
 
-- [ ] **Step 4: Host gate (unit only)**
+- [x] **Step 4: Host gate (unit only)**
 
 `uv run pytest -q` → existing tests pass; integration skipped by default.
 
@@ -532,7 +532,7 @@ Use `create_async_engine(settings.require_database_url)`. `SqlAlchemyUnitOfWork.
 - Create `tests/integration/db/test_unit_of_work.py`
 - Create `tests/integration/db/conftest.py` — isolated `cps_test` database fixture from `CPS_TEST_DATABASE_URL`
 
-- [ ] **Step 1: Write migration introspection test**
+- [x] **Step 1: Write migration introspection test**
 
 ```python
 @pytest.mark.integration
@@ -545,11 +545,11 @@ async def test_upgrade_from_empty_creates_core_tables(db_admin_conn):
 
 **RED:** `uv run pytest tests/integration/db/test_migration.py -m integration -q` → missing tables.
 
-- [ ] **Step 2: Implement models + migration**
+- [x] **Step 2: Implement models + migration**
 
 Match schema section above; include partial unique index for idempotency and RESTRICT foreign keys as specified.
 
-- [ ] **Step 3: Migration verification**
+- [x] **Step 3: Migration verification**
 
 ```bash
 uv run alembic upgrade head
@@ -557,11 +557,11 @@ uv run alembic downgrade base
 uv run alembic upgrade head
 ```
 
-- [ ] **Step 4: GREEN + constraint test**
+- [x] **Step 4: GREEN + constraint test**
 
 Add tests asserting all named unique/FK/index/CHECK constraints exist via PostgreSQL catalogs, including non-null operation connection scope, progress/version/sequence/attempt bounds, claim-field consistency, and RESTRICT on operation history. Negative tests reject a duplicate domain/project/region connection, out-of-range progress, zero sequence/version, and invalid CLAIMED rows.
 
-- [ ] **Step 5: Real rollback proof** — inside a UoW insert a provider then raise under `pytest.raises`; query through a fresh session and assert the row is absent.
+- [x] **Step 5: Real rollback proof** — inside a UoW insert a provider then raise under `pytest.raises`; query through a fresh session and assert the row is absent.
 
 **Failure cases:** downgrade drops tables in reverse FK order; enums dropped last.
 **Proposed commit:** `feat(cps-103): add initial persistence schema migration`
@@ -580,10 +580,10 @@ Add tests asserting all named unique/FK/index/CHECK constraints exist via Postgr
 - Create `tests/integration/db/test_provider_repository.py`
 - Create `tests/unit/security/test_credential_cipher.py`
 
-- [ ] **Step 1: RED crypto** — round trip with injected 32-byte test key; different nonces produce different ciphertext; tampered ciphertext/AAD fails; serialized model/log capture never contains plaintext.
-- [ ] **Step 2: RED repository** — insert provider, encrypted credential, and connection in one UoW; assert FK linkage and confirm a SQL query cannot find plaintext password bytes/text.
-- [ ] **Step 3: GREEN** — implement cipher boundary and repository methods `add_provider`, `add_credential`, `add_connection`; repository accepts encrypted value object only.
-- [ ] **Step 4: Rollback test** — second connection not visible after rollback.
+- [x] **Step 1: RED crypto** — round trip with injected 32-byte test key; different nonces produce different ciphertext; tampered ciphertext/AAD fails; serialized model/log capture never contains plaintext.
+- [x] **Step 2: RED repository** — insert provider, encrypted credential, and connection in one UoW; assert FK linkage and confirm a SQL query cannot find plaintext password bytes/text.
+- [x] **Step 3: GREEN** — implement cipher boundary and repository methods `add_provider`, `add_credential`, `add_connection`; repository accepts encrypted value object only.
+- [x] **Step 4: Rollback test** — second connection not visible after rollback.
 
 Add `cryptography` with an exact compatible lock through `uv add`; do not hand-edit `uv.lock`. Key-provider lookup is lazy so CPS can start without a credential key until credential persistence is invoked; invoking it without a configured provider fails closed.
 
@@ -605,7 +605,7 @@ Add `cryptography` with an exact compatible lock through `uv add`; do not hand-e
 - Create `tests/unit/operations/test_state_machine.py`
 - Create `tests/integration/db/test_operation_transitions.py`
 
-- [ ] **Step 1: RED unit tests**
+- [x] **Step 1: RED unit tests**
 
 ```python
 def test_accepted_to_queued_allowed(): ...
@@ -613,11 +613,11 @@ def test_succeeded_to_running_forbidden(): ...
 def test_terminal_states_frozen(): ...
 ```
 
-- [ ] **Step 2: Implement domain + repository append event with sequence**
+- [x] **Step 2: Implement domain + repository append event with sequence**
 
 Lock the operation row (`SELECT ... FOR UPDATE`) before allocating `sequence = last_sequence + 1`; update state/version and insert event in the same transaction. Repository exposes no update/delete API for events or delete API for operations in 1B.
 
-- [ ] **Step 3: GREEN unit + integration**
+- [x] **Step 3: GREEN unit + integration**
 
 Integration: concurrent transition with stale version raises conflict.
 
@@ -639,10 +639,10 @@ Integration: concurrent transition with stale version raises conflict.
 - Create `tests/unit/operations/test_idempotency_fingerprint.py`
 - Create `tests/integration/db/test_idempotency_race.py`
 
-- [ ] **Step 1: RED fingerprint tests** — key order invariant.
-- [ ] **Step 2: RED integration** — same key same payload returns same id; same key different payload raises conflict.
-- [ ] **Step 3: RED race** — `asyncio.gather` ×10 identical creates → exactly one row (PostgreSQL integration).
-- [ ] **Step 4: GREEN** — catch `IntegrityError`, re-fetch.
+- [x] **Step 1: RED fingerprint tests** — key order invariant.
+- [x] **Step 2: RED integration** — same key same payload returns same id; same key different payload raises conflict.
+- [x] **Step 3: RED race** — `asyncio.gather` ×10 identical creates → exactly one row (PostgreSQL integration).
+- [x] **Step 4: GREEN** — catch `IntegrityError`, re-fetch.
 
 **Checkpoint:** CP2 — run `uv run pytest tests/integration/db -m integration -q`.
 
@@ -664,10 +664,10 @@ Integration: concurrent transition with stale version raises conflict.
 - Regenerate `src/cps/contracts/checksums.json` using `python -m cps.contracts.write_manifest`
 - OPS: mirror the model/files locally, copy `checksums.json` to `cps_checksums.pinned.json`, and keep standalone validation
 
-- [ ] **Step 1: RED** — require positive integer attempt/max, `attempt <= max_attempts`, allowlisted original routing key, bounded retry reason, and supported transport version; expected ImportError/missing schema.
-- [ ] **Step 2: GREEN** — implement `DeliveryMetadata`, schema, fixture, and semantic validation; prove existing envelope bytes are unchanged.
-- [ ] **Step 3: CPS manifest** — run `uv run python -m cps.contracts.write_manifest` and `uv run python -m cps.contracts.validate_contracts`; assert only the expected delivery paths were added.
-- [ ] **Step 4: OPS pin** — copy the canonical delta and manifests; run `uv run python -m ops.contracts.validate_contracts` plus standalone pin assertion; prove no `cps.*` runtime import.
+- [x] **Step 1: RED** — require positive integer attempt/max, `attempt <= max_attempts`, allowlisted original routing key, bounded retry reason, and supported transport version; expected ImportError/missing schema.
+- [x] **Step 2: GREEN** — implement `DeliveryMetadata`, schema, fixture, and semantic validation; prove existing envelope bytes are unchanged.
+- [x] **Step 3: CPS manifest** — run `uv run python -m cps.contracts.write_manifest` and `uv run python -m cps.contracts.validate_contracts`; assert only the expected delivery paths were added.
+- [x] **Step 4: OPS pin** — copy the canonical delta and manifests; run `uv run python -m ops.contracts.validate_contracts` plus standalone pin assertion; prove no `cps.*` runtime import.
 
 **Checkpoint:** CP3
 **Proposed commit (CPS):** `feat(contracts): add retry delivery metadata contract`
@@ -687,14 +687,14 @@ Integration: concurrent transition with stale version raises conflict.
 - Create `tests/integration/messaging/test_topology.py`
 - Modify `src/ops/messaging/runtime.py` — call `TopologyBuilder.declare` on connect
 
-- [ ] **Step 1: RED integration** — connect to Compose RabbitMQ; assert queue `ops.command.v1` exists with DLX args.
+- [x] **Step 1: RED integration** — connect to Compose RabbitMQ; assert queue `ops.command.v1` exists with DLX args.
 
 ```bash
 uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 ```
 
-- [ ] **Step 2: Implement TopologyBuilder**
-- [ ] **Step 3: GREEN + reconnect test** — declare twice, delete connection, reconnect, declare again.
+- [x] **Step 2: Implement TopologyBuilder**
+- [x] **Step 3: GREEN + reconnect test** — declare twice, delete connection, reconnect, declare again.
 
 **Proposed commit:** `feat(ops-102): declare RabbitMQ command topology with DLX and retry queues`
 
@@ -714,11 +714,11 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 - Create `tests/integration/messaging/test_publisher_confirms.py`
 - Create `tests/integration/messaging/test_graceful_shutdown.py`
 
-- [ ] **Step 1: RED ack matrix tests** — table-driven cases from Ack Policy section; assert exactly one terminal action, confirm-before-ACK, and no retry+DLX duplicate.
-- [ ] **Step 2: Implement consumer loop with QoS, typed delivery-header validation, retry-confirm-ACK, reject-only DLX, and channel-close recovery on confirm failure.**
-- [ ] **Step 3: RED publisher confirm test** — publish with confirm; simulate nack.
-- [ ] **Step 4: GREEN topology/retry test** — TTL expiry returns exactly once to `ops.command.v1` through concrete `openstack.retry`; original routing key header remains allowlisted and intact.
-- [ ] **Step 5: GREEN shutdown test** — SIGTERM drains in-flight; grace timeout closes channel with delivery unacked and proves redelivery after reconnect.
+- [x] **Step 1: RED ack matrix tests** — table-driven cases from Ack Policy section; assert exactly one terminal action, confirm-before-ACK, and no retry+DLX duplicate.
+- [x] **Step 2: Implement consumer loop with QoS, typed delivery-header validation, retry-confirm-ACK, reject-only DLX, and channel-close recovery on confirm failure.**
+- [x] **Step 3: RED publisher confirm test** — publish with confirm; simulate nack.
+- [x] **Step 4: GREEN topology/retry test** — TTL expiry returns exactly once to `ops.command.v1` through concrete `openstack.retry`; original routing key header remains allowlisted and intact.
+- [x] **Step 5: GREEN shutdown test** — SIGTERM drains in-flight; grace timeout closes channel with delivery unacked and proves redelivery after reconnect.
 
 **Checkpoint:** CP4 — full OPS-102 integration suite green with `RABBITMQ_URL` from Compose.
 
@@ -740,10 +740,10 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 - Create `tests/unit/messaging/test_dispatch.py`
 - Create `tests/integration/messaging/test_dispatch_e2e.py`
 
-- [ ] **Step 1: RED unit** — unknown type → deterministic error; unsupported major → reject.
-- [ ] **Step 2: RED** — mutation tracker proves handler not called when validation fails.
-- [ ] **Step 3: Implement dispatch + stub handler returning progress/completed/failed envelope shapes**
-- [ ] **Step 4: Integration** — publish valid command fixture → stub result published with confirm → command acked.
+- [x] **Step 1: RED unit** — unknown type → deterministic error; unsupported major → reject.
+- [x] **Step 2: RED** — mutation tracker proves handler not called when validation fails.
+- [x] **Step 3: Implement dispatch + stub handler returning progress/completed/failed envelope shapes**
+- [x] **Step 4: Integration** — publish valid command fixture → stub result published with confirm → command acked.
 
 **Rules:** Do not resolve credentials; `credential_reference` passed through opaque in stub only.
 
@@ -765,12 +765,12 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 - Create `tests/integration/messaging/test_outbox_publish.py`
 - Create `tests/integration/messaging/test_outbox_crash_recovery.py`
 
-- [ ] **Step 1: RED** — create operation + outbox in one TX; assert single row.
-- [ ] **Step 2: RED two-worker claim** — concurrent publishers receive disjoint rows; committed claim state is CLAIMED with owner/token/expiry before network I/O.
-- [ ] **Step 3: RED lease recovery** — crash after claim leaves CLAIMED; another publisher cannot claim before expiry and can reclaim after expiry.
-- [ ] **Step 4: RED guarded finalize** — PUBLISHED only after confirm and only with matching claim token; stale owner/token cannot finalize.
-- [ ] **Step 5: RED crash** — confirm OK + failing DB update leaves reclaimable CLAIMED/PENDING state; republish keeps the same message_id and documents duplicate risk.
-- [ ] **Step 6: GREEN** — live RabbitMQ message received on `ops.command.v1`; no DB transaction remains open while awaiting confirm.
+- [x] **Step 1: RED** — create operation + outbox in one TX; assert single row.
+- [x] **Step 2: RED two-worker claim** — concurrent publishers receive disjoint rows; committed claim state is CLAIMED with owner/token/expiry before network I/O.
+- [x] **Step 3: RED lease recovery** — crash after claim leaves CLAIMED; another publisher cannot claim before expiry and can reclaim after expiry.
+- [x] **Step 4: RED guarded finalize** — PUBLISHED only after confirm and only with matching claim token; stale owner/token cannot finalize.
+- [x] **Step 5: RED crash** — confirm OK + failing DB update leaves reclaimable CLAIMED/PENDING state; republish keeps the same message_id and documents duplicate risk.
+- [x] **Step 6: GREEN** — live RabbitMQ message received on `ops.command.v1`; no DB transaction remains open while awaiting confirm.
 
 **Proposed commit:** `feat(cps-106): transactional outbox publisher with confirms`
 
@@ -788,12 +788,12 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 - Create `tests/integration/messaging/test_inbox_dedupe.py`
 - Create `tests/integration/messaging/test_inbox_handler_failure.py`
 
-- [ ] **Step 1: RED duplicate** — deliver same message_id twice after successful processing → one domain effect; second delivery sees PROCESSED and ACKs.
-- [ ] **Step 2: RED atomic rollback** — handler raises after inbox insert → operation unchanged and inbox row absent because one transaction rolls back.
-- [ ] **Step 3: RED concurrent duplicate** — second transaction blocks on the unique insert; winner commit yields one PROCESSED effect and loser ACKs, while winner rollback lets loser process.
-- [ ] **Step 4: RED crash boundary** — crash before commit leaves no inbox/domain mutation; redelivery processes once.
-- [ ] **Step 5: GREEN cross-repo** — OPS stub publishes event → CPS inbox updates operation and commits PROCESSED atomically.
-- [ ] **Step 6: GREEN CPS ack matrix** — malformed/unsupported/unknown, transient DB/optimistic/handler failures, exhausted retry, late terminal event, confirm failure, and shutdown match the CPS event policy with exact-one destination.
+- [x] **Step 1: RED duplicate** — deliver same message_id twice after successful processing → one domain effect; second delivery sees PROCESSED and ACKs.
+- [x] **Step 2: RED atomic rollback** — handler raises after inbox insert → operation unchanged and inbox row absent because one transaction rolls back.
+- [x] **Step 3: RED concurrent duplicate** — second transaction blocks on the unique insert; winner commit yields one PROCESSED effect and loser ACKs, while winner rollback lets loser process.
+- [x] **Step 4: RED crash boundary** — crash before commit leaves no inbox/domain mutation; redelivery processes once.
+- [x] **Step 5: GREEN cross-repo** — OPS stub publishes event → CPS inbox updates operation and commits PROCESSED atomically.
+- [x] **Step 6: GREEN CPS ack matrix** — malformed/unsupported/unknown, transient DB/optimistic/handler failures, exhausted retry, late terminal event, confirm failure, and shutdown match the CPS event policy with exact-one destination.
 
 **Checkpoint:** CP6
 **Proposed commit:** `feat(cps-106): inbox consumer with deduplication and transactional processing`
@@ -802,27 +802,86 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 
 ## Task 12: Sprint 1B verification gate
 
-**Story:** all
-**Goal:** Evidence collection without commit.
+**Story:** all (CPS-103..106, OPS-102, OPS-104)
+**Goal:** Collect cross-repo Definition-of-Done evidence and close Sprint 1B.
+**Status:** Done — verified **2026-07-22** at CPS `f095321248ab46dda72425f9da181b63caeffa9c` and OPS `7318f53ee29f5e54a25b4dd0fd35034591cc0854` (CPS HEAD includes scanner-safe synthetic secret fixture fix for the tracked-file secret scan).
 
-- [ ] CPS: `uv run pytest -q` → all unit pass; document integration command:
+- [x] CPS: `uv run pytest -q` → unit pass (**413 passed, 189 skipped**, 1 `StarletteDeprecationWarning`); integration with `$env:CPS_RUN_INTEGRATION='1'` and `CPS_TEST_DATABASE_URL` → DB **142 passed**, messaging **45 passed**, full ON **600 passed, 2 skipped**.
 
-```bash
-$env:CPS_RUN_INTEGRATION='1'
-$env:CPS_TEST_DATABASE_URL='postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cps_test' # pragma: allowlist secret
-py -3.12 -m uv run pytest -m integration -q
-```
+- [x] OPS: `$env:OPS_RUN_INTEGRATION='1'`; committed development settings resolve local Compose RabbitMQ (URL not printed) → messaging **21 passed**, full ON **333 passed, 2 skipped**; OpenStack DeprecationWarning suite **42 passed** (`-W error::DeprecationWarning`).
 
-- [ ] OPS: set `$env:OPS_RUN_INTEGRATION='1'`; the committed development settings resolve local Compose RabbitMQ; run `py -3.12 -m uv run pytest -m integration -q` without printing the URL.
-- [ ] `uv run alembic upgrade head` on empty DB (CPS).
-- [ ] `uv run ruff format --check src tests`, `uv run ruff check src tests`, and `uv run mypy` in both repos.
-- [ ] `uv run python -m cps.contracts.validate_contracts` / `uv run python -m ops.contracts.validate_contracts`; run OPS standalone pin assertion.
-- [ ] Host `.husky/pre-commit` in both repos; record real exit codes.
-- [ ] Build from each repo root: `docker build -t cps:sprint1b .` and `docker build -t ops:sprint1b .`; Compose remains the PostgreSQL/RabbitMQ/Valkey infrastructure stack.
-- [ ] Run read-only `detect-secrets-hook --baseline .secrets.baseline` over NUL-safe tracked paths using the baseline exclude filters; assert baseline SHA-256 unchanged and use split synthetic secrets in tests.
-- [ ] `git diff --check`; no unexpected artifacts; `git diff --cached --name-only` empty. Expected reviewed implementation/evidence changes may remain unstaged because automatic commits are forbidden.
+- [x] `uv run alembic upgrade head` on empty DB (CPS); empty → head → base → head cycle passed.
 
-**Update backlog:** mark stories Done in `plan/sprints/sprint-1b.md` only after human review approves plan implementation.
+- [x] `uv run ruff format --check src tests`, `uv run ruff check src tests`, and `uv run mypy` in both repos (CPS: format **150** files, mypy **79**; OPS: format **86**, mypy **47**).
+
+- [x] `uv run python -m cps.contracts.validate_contracts` / `uv run python -m ops.contracts.validate_contracts`; OPS standalone pin assertion; **10** manifest artifacts byte-equal (SHA-256 `2C19CB44550063383F4EBCD35E292B5377FEEDFC185B30F215117E6EA150A07D`); exact `x-*` headers and routing keys.
+
+- [x] Host `.husky/pre-commit` in both repos — **exit 0** (including staged fix state).
+
+- [x] Build from each repo root: `docker build -t cps:sprint1b .` and `docker build -t ops:sprint1b .` — **exit 0**; Compose remains the PostgreSQL/RabbitMQ/Valkey infrastructure stack.
+
+- [x] Read-only `detect-secrets-hook --baseline .secrets.baseline` over NUL-safe tracked paths; baselines unchanged — CPS `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE`, OPS `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F`; no tracked `.env`/credentials/keys.
+
+- [x] `git diff --check`; boundary checks pass (no OpenStackSDK in CPS, no DB runtime in OPS, no sibling imports, no legacy `cpms`/`osps`, no GitHub Actions).
+
+**Closure:** **12/12 tasks Done**, **6/6 stories Done**. Independent review **APPROVED** — no P0–P3. Backlog status updated in `plan/sprints/sprint-1b.md`. Evidence recorded at verified HEADs above; no self-referential docs-only commit SHA.
+
+---
+
+## Sprint 1B closure evidence (2026-07-22)
+
+### Task commit matrix
+
+| Task | Story | Repo | Commit(s) |
+|---|---|---|---|
+| 1 | CPS-103 | CPS | `363ef80` |
+| 2 | CPS-103 | CPS | `7a14f43` |
+| 3 | CPS-103 | CPS | `6038b1d` |
+| 4 | CPS-104 | CPS | `5d30982` |
+| 5 | CPS-105 | CPS | `15e63a2` |
+| 6 | transport contract | CPS + OPS | CPS `9b8fde3`, OPS `d326164` |
+| 7 | OPS-102 | OPS | `8121235` |
+| 8 | OPS-102 | OPS | `2ecaeb3` |
+| 9 | OPS-104 | OPS | `180031f` → `c6170de` → `7318f53ee29f5e54a25b4dd0fd35034591cc0854` |
+| 10 | CPS-106 | CPS | `ff5b3ae` |
+| 11 | CPS-106 | CPS | `bbb1e1f` |
+| 12 | all | CPS + OPS | verified CPS `f095321248ab46dda72425f9da181b63caeffa9c`, OPS `7318f53ee29f5e54a25b4dd0fd35034591cc0854` |
+
+### Story outcomes
+
+| Story | Status |
+|---|---|
+| CPS-103 | Done |
+| CPS-104 | Done |
+| CPS-105 | Done |
+| CPS-106 | Done |
+| OPS-102 | Done |
+| OPS-104 | Done |
+
+### Quality gates (fresh run, exit 0 unless noted)
+
+| Gate | CPS | OPS |
+|---|---|---|
+| `uv lock --check` / `uv sync --frozen --all-extras` | pass | pass |
+| `pytest -q` (integration OFF) | 413 passed, 189 skipped | 311 passed, 24 skipped |
+| DB integration | 142 passed | — |
+| Messaging integration | 45 passed | 21 passed |
+| Full integration ON | 600 passed, 2 skipped | 333 passed, 2 skipped |
+| OpenStack DeprecationWarning suite | — | 42 passed |
+| Alembic empty→head→base→head | pass | — |
+| Ruff format / check | 150 files / pass | 86 files / pass |
+| mypy | 79 files | 47 files |
+| contracts validate | 10 artifacts | 10 artifacts + standalone pin |
+| `git diff --check` | pass | pass |
+| Docker build | `cps:sprint1b` | `ops:sprint1b` |
+| Host `.husky/pre-commit` | exit 0 | exit 0 |
+| Secret scan baseline SHA-256 | `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE` | `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` |
+
+**Warnings:** 1 known `StarletteDeprecationWarning` (httpx vs httpx2) in each repo — pre-existing, non-blocking.
+
+**Deferred to Sprint 2+:** provider/credential/connection CRUD, OPS credential resolver, real OpenStack handlers, inventory/VM lifecycle, Keycloak/TMS/LMS/CMP integration.
+
+**Retrospective gates to keep:** disposable test guards; contract byte parity; exact ACK/confirm ordering tests.
 
 ---
 
@@ -844,17 +903,17 @@ py -3.12 -m uv run pytest -m integration -q
 
 ## Definition of Done
 
-- [ ] PostgreSQL 18 migration runs from empty DB; downgrade/base/upgrade cycle passes.
-- [ ] Constraints and indexes introspected in integration tests.
-- [ ] UoW rollback proven.
-- [ ] Operation transitions, terminal immutability, and optimistic conflict tested.
-- [ ] Idempotency race tested with real PostgreSQL unique index.
-- [ ] Outbox/inbox replay-safe with crash matrix coverage.
-- [ ] RabbitMQ reconnect, topology redeclare, publisher confirms, ack/retry/DLQ matrix tested.
-- [ ] No credential or raw provider body leakage in persisted JSONB or logs.
-- [ ] Ruff, mypy, pytest (unit), contracts validate, detect-secrets, pre-commit pass.
-- [ ] Docker images build.
-- [ ] Worktree clean; no commit in planning/implement session unless user requests.
+- [x] PostgreSQL 18 migration runs from empty DB; downgrade/base/upgrade cycle passes.
+- [x] Constraints and indexes introspected in integration tests.
+- [x] UoW rollback proven.
+- [x] Operation transitions, terminal immutability, and optimistic conflict tested.
+- [x] Idempotency race tested with real PostgreSQL unique index.
+- [x] Outbox/inbox replay-safe with crash matrix coverage.
+- [x] RabbitMQ reconnect, topology redeclare, publisher confirms, ack/retry/DLQ matrix tested.
+- [x] No credential or raw provider body leakage in persisted JSONB or logs.
+- [x] Ruff, mypy, pytest (unit), contracts validate, detect-secrets, pre-commit pass.
+- [x] Docker images build.
+- [x] Verification gate (Task 12) complete with fresh cross-repo evidence dated 2026-07-22 at verified HEADs.
 
 ---
 
