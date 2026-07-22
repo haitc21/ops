@@ -814,13 +814,13 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 
 - [x] `uv run ruff format --check src tests`, `uv run ruff check src tests`, and `uv run mypy` in both repos (CPS: format **150** files, mypy **79**; OPS: format **86**, mypy **47**).
 
-- [x] `uv run python -m cps.contracts.validate_contracts` / `uv run python -m ops.contracts.validate_contracts`; OPS standalone pin assertion; **10** manifest artifacts byte-equal (SHA-256 `2C19CB44550063383F4EBCD35E292B5377FEEDFC185B30F215117E6EA150A07D`); exact `x-*` headers and routing keys.
+- [x] `uv run python -m cps.contracts.validate_contracts` / `uv run python -m ops.contracts.validate_contracts`; OPS standalone pin assertion; **10** manifest artifacts byte-equal CPS↔OPS; LF `checksums.json` SHA-256 `5631EA7DF0EBB89AB6C7D0CF94ABBBA0661660B8FED411050216BC65408068B9` (CRLF `9C2ADCAE2475C62990A7306FBA4DA5613DF887423A640A3C0F907AC2BA329B94`); closure evidence `2C19CB44550063383F4EBCD35E292B5377FEEDFC185B30F215117E6EA150A07D` was SHA-256 of pre-repair manifest LF `583FC335837A4669EE36541169203C9102FFE357D84DAB5FFFEB8FDE40099345` after LF→CRLF transcoding (that manifest's per-path digests used CRLF working-tree artifact bytes on Windows); exact `x-*` headers and routing keys.
 
 - [x] Host `.husky/pre-commit` in both repos — **exit 0** (including staged fix state).
 
 - [x] Build from each repo root: `docker build -t cps:sprint1b .` and `docker build -t ops:sprint1b .` — **exit 0**; Compose remains the PostgreSQL/RabbitMQ/Valkey infrastructure stack.
 
-- [x] Read-only `detect-secrets-hook --baseline .secrets.baseline` over NUL-safe tracked paths; baselines unchanged — CPS `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE`, OPS `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F`; no tracked `.env`/credentials/keys.
+- [x] Read-only `detect-secrets-hook --baseline .secrets.baseline` over NUL-safe tracked paths; baselines unchanged (raw LF SHA-256: CPS `3F508AAA63EC0461BC30848D6B46AEB37FC4002EDB8870FEB8D7EB8D5A690250`, OPS `1089606D34E129B89DCAD807B958747A65FF5E45E9AA93FE2E171ECC514EDA26`; closure evidence `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE` / `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` were CRLF-transcoded reads on Windows — `.secrets.baseline text eol=lf` stabilizes the gate); no tracked `.env`/credentials/keys.
 
 - [x] `git diff --check`; boundary checks pass (no OpenStackSDK in CPS, no DB runtime in OPS, no sibling imports, no legacy `cpms`/`osps`, no GitHub Actions).
 
@@ -875,7 +875,8 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 | `git diff --check` | pass | pass |
 | Docker build | `cps:sprint1b` | `ops:sprint1b` |
 | Host `.husky/pre-commit` | exit 0 | exit 0 |
-| Secret scan baseline SHA-256 | `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE` | `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` |
+| Secret scan baseline SHA-256 (raw LF) | `3F508AAA63EC0461BC30848D6B46AEB37FC4002EDB8870FEB8D7EB8D5A690250` | `1089606D34E129B89DCAD807B958747A65FF5E45E9AA93FE2E171ECC514EDA26` |
+| Secret scan baseline SHA-256 (closure CRLF-read evidence) | `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE` | `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` |
 
 **Warnings:** 1 known `StarletteDeprecationWarning` (httpx vs httpx2) in each repo — pre-existing, non-blocking.
 

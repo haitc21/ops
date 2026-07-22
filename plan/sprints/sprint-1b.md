@@ -51,11 +51,11 @@ All OPS items in the canonical plan §Definition of Done are satisfied with fres
   - `uv run ruff check src tests` — pass
   - `uv run mypy` — **47** files / pass
   - `uv run python -m ops.contracts.validate_contracts` + standalone pin — **10** artifacts / pass
-  - cross-repo contract byte parity SHA-256: `2C19CB44550063383F4EBCD35E292B5377FEEDFC185B30F215117E6EA150A07D` (10 artifacts byte-equal)
+  - cross-repo contract byte parity: **10** fixtures/schemas byte-equal CPS↔OPS; LF `checksums.json` SHA-256 `5631EA7DF0EBB89AB6C7D0CF94ABBBA0661660B8FED411050216BC65408068B9` (CRLF `9C2ADCAE2475C62990A7306FBA4DA5613DF887423A640A3C0F907AC2BA329B94`; closure evidence `2C19CB44550063383F4EBCD35E292B5377FEEDFC185B30F215117E6EA150A07D` = pre-repair manifest LF `583FC335837A4669EE36541169203C9102FFE357D84DAB5FFFEB8FDE40099345` LF→CRLF transcoded, per-path digests from CRLF working-tree bytes on Windows)
   - `git diff --check` — pass
   - `docker build -t ops:sprint1b .` — exit 0
   - host `.husky/pre-commit` — exit 0 (including staged fix state)
-  - read-only secret scan baseline unchanged `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F`
+  - read-only secret scan baseline unchanged (raw LF SHA-256 `1089606D34E129B89DCAD807B958747A65FF5E45E9AA93FE2E171ECC514EDA26`; closure evidence `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` was CRLF-transcoded read on Windows)
 - Independent review: **APPROVED** — no P0–P3.
 - Architecture boundaries passed: no DB runtime in OPS; no sibling imports; no legacy identifiers; no GitHub Actions.
 

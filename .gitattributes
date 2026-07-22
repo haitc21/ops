@@ -1,0 +1,11 @@
+# Contract artifacts — canonical LF for cross-platform checksum stability
+src/ops/contracts/fixtures/** text eol=lf
+src/ops/contracts/jsonschema/** text eol=lf
+src/ops/contracts/*.json text eol=lf
+
+# Shell hooks and scripts
+*.sh text eol=lf
+.husky/** text eol=lf
+
+# Secret scan baseline — canonical LF for cross-platform hash gate
+.secrets.baseline text eol=lf
