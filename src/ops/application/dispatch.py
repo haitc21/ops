@@ -6,12 +6,16 @@ from collections.abc import Callable
 from typing import Any
 
 from ops.application.handlers.connection_validate import make_connection_validate
+from ops.application.handlers.inventory_collect import (
+    make_inventory_collect,
+    make_inventory_refresh,
+)
 from ops.application.handlers.registry import HandlerRegistry
 from ops.application.handlers.stub_connection_validate import make_stub_connection_validate
 from ops.application.validation import EnvelopeReject, validate_command_envelope
 from ops.config import Settings
 from ops.contracts.messages.delivery import DeliveryMetadata
-from ops.contracts.messages.types import CONNECTION_VALIDATE
+from ops.contracts.messages.types import CONNECTION_VALIDATE, INVENTORY_COLLECT, INVENTORY_REFRESH
 from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerOutcome
 
 
@@ -35,6 +39,8 @@ def build_default_registry(
 def build_production_registry(settings: Settings) -> HandlerRegistry:
     registry = HandlerRegistry()
     registry.register(CONNECTION_VALIDATE, make_connection_validate(settings))
+    registry.register(INVENTORY_COLLECT, make_inventory_collect(settings))
+    registry.register(INVENTORY_REFRESH, make_inventory_refresh(settings))
     registry.freeze()
     return registry
 

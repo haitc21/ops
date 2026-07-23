@@ -15,6 +15,9 @@
     "resource_type": "instance",
     "sequence": 1,
     "is_last": true,
+    "collection_status": "COMPLETE",
+    "item_count": 0,
+    "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "items": []
   }
 }

@@ -2,7 +2,7 @@
   "files": {
     "fixtures/commands/connection_validate.json": "f385ad33d4fd1ea27300cc6e5c5a3ef7ab588306caf0ebeed71c721aba097ec4",
     "fixtures/errors/provider_authentication_failed.json": "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b",
-    "fixtures/events/inventory_batch.json": "2f131ebe9a44f965c0b0b315c11955ccf9efca8fef03bdd70c49dd62a6647b8c",
+    "fixtures/events/inventory_batch.json": "7297cb6a4eddea9af2953fd350de9c169cc75d61322689d63f31d965f4e26018",
     "fixtures/events/operation_completed.json": "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295",
     "fixtures/events/operation_failed.json": "419f9d68b886963d8e52e662ed5648ef3ac541fd0a321ac0b0a1314d289ac923",
     "fixtures/events/operation_progress.json": "9da2af29181b0fcdd2578bdf15f408c4226d82675d452fbba9bb36daa74899e1",

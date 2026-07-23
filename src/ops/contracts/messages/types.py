@@ -1,7 +1,11 @@
 """Message type constants for CPS↔OPS contracts."""
 
 CONNECTION_VALIDATE = "openstack.connection.validate"
+INVENTORY_COLLECT = "openstack.inventory.collect"
+INVENTORY_REFRESH = "openstack.inventory.refresh"
 OPERATION_PROGRESS = "cloud.operation.progress"
 OPERATION_COMPLETED = "cloud.operation.completed"
 OPERATION_FAILED = "cloud.operation.failed"
 INVENTORY_BATCH = "cloud.inventory.batch"
+INVENTORY_COMPLETED = "cloud.inventory.completed"
+INVENTORY_FAILED = "cloud.inventory.failed"

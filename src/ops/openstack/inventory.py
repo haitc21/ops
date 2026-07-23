@@ -1,0 +1,141 @@
+"""Provider-safe OpenStack inventory collectors and mappers."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from typing import Any
+
+COLLECTIONS = (
+    "region",
+    "project",
+    "flavor",
+    "image",
+    "network",
+    "subnet",
+    "port",
+    "volume",
+    "instance",
+)
+
+
+def _value(resource: Any, name: str, default: Any = None) -> Any:
+    value = getattr(resource, name, default)
+    return default if value is None else value
+
+
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if hasattr(value, "isoformat") else None
+
+
+def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
+    """Map one SDK resource to the common contract without leaking SDK objects."""
+    provider_id = str(_value(resource, "id", ""))
+    name_value = _value(resource, "name", provider_id)
+    name = str(name_value or provider_id)
+    item: dict[str, Any] = {
+        "provider_resource_id": provider_id,
+        "name": name,
+        "provider_status": _value(resource, "status"),
+        "provider_created_at": _iso(_value(resource, "created_at")),
+        "provider_updated_at": _iso(_value(resource, "updated_at")),
+        "attributes": {},
+    }
+    attributes: dict[str, Any] = {}
+    fields = {
+        "region": ("description", "parent_region_id"),
+        "project": ("domain_id", "domain_name", "description", "is_enabled"),
+        "flavor": ("vcpus", "ram", "disk", "ephemeral", "swap", "is_public"),
+        "image": ("visibility", "size", "min_disk", "min_ram", "disk_format", "checksum"),
+        "network": ("admin_state_up", "shared", "is_router_external", "mtu"),
+        "subnet": (
+            "network_id",
+            "cidr",
+            "ip_version",
+            "gateway_ip",
+            "enable_dhcp",
+            "dns_nameservers",
+            "allocation_pools",
+        ),
+        "port": (
+            "network_id",
+            "admin_state_up",
+            "mac_address",
+            "fixed_ips",
+            "device_id",
+            "device_owner",
+            "security_group_ids",
+        ),
+        "volume": (
+            "size",
+            "volume_type",
+            "bootable",
+            "encrypted",
+            "multiattach",
+            "availability_zone",
+            "attachments",
+        ),
+        "instance": (
+            "power_state",
+            "flavor",
+            "image",
+            "OS-EXT-AZ:availability_zone",
+            "addresses",
+            "metadata",
+            "launched_at",
+            "terminated_at",
+        ),
+    }.get(resource_type, ())
+    for field in fields:
+        key = field.replace("OS-EXT-AZ:", "").replace(":", "_")
+        value = _value(resource, field, None)
+        if value is None:
+            continue
+        if field in {"flavor", "image"} and hasattr(value, "id"):
+            value = str(value.id)
+        if isinstance(value, str | int | float | bool) or value is None:
+            attributes[key] = value
+        elif isinstance(value, list | dict):
+            attributes[key] = value
+        else:
+            attributes[key] = str(value)
+    item["attributes"] = attributes
+    return item
+
+
+def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any]]:
+    """Collect one resource type through supported SDK proxy generators."""
+    proxy_name = {
+        "region": ("identity", "regions"),
+        "project": ("identity", "projects"),
+        "flavor": ("compute", "flavors"),
+        "image": ("image", "images"),
+        "network": ("network", "networks"),
+        "subnet": ("network", "subnets"),
+        "port": ("network", "ports"),
+        "volume": ("block_storage", "volumes"),
+        "instance": ("compute", "servers"),
+    }
+    service, method_name = proxy_name[resource_type]
+    proxy = getattr(connection, service)
+    resources: Iterable[Any] = getattr(proxy, method_name)()
+    return [map_resource(resource_type, resource) for resource in resources]
+
+
+def collect_targeted_resource(
+    connection: Any, resource_type: str, provider_resource_id: str
+) -> dict[str, Any]:
+    getter = {
+        "region": ("identity", "get_region"),
+        "project": ("identity", "get_project"),
+        "flavor": ("compute", "get_flavor"),
+        "image": ("image", "get_image"),
+        "network": ("network", "get_network"),
+        "subnet": ("network", "get_subnet"),
+        "port": ("network", "get_port"),
+        "volume": ("block_storage", "get_volume"),
+        "instance": ("compute", "get_server"),
+    }[resource_type]
+    proxy = getattr(connection, getter[0])
+    method = getattr(proxy, getter[1])
+    resource = method(provider_resource_id)
+    return map_resource(resource_type, resource)
