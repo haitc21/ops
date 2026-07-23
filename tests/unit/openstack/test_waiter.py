@@ -11,6 +11,7 @@ from ops.openstack.waiter import (
     WaiterConfig,
     WaiterProviderError,
     WaiterTimeoutError,
+    wait_for_deleted,
     wait_for_state,
 )
 
@@ -67,6 +68,48 @@ def test_waiter_times_out_without_retrying_command() -> None:
                 config=WaiterConfig(
                     target_states=frozenset({"ACTIVE"}), interval_seconds=1, timeout_seconds=1
                 ),
+                sleep=lambda _delay: asyncio.sleep(0),
+                monotonic=iter([0.0, 2.0]).__next__,
+            )
+        )
+
+
+def test_deletion_waiter_accepts_provider_not_found() -> None:
+    class ResourceGone(Exception):
+        pass
+
+    responses = iter([SimpleNamespace(status="ACTIVE"), ResourceGone()])
+
+    async def fetch() -> SimpleNamespace:
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    asyncio.run(
+        wait_for_deleted(
+            fetch,
+            config=WaiterConfig(target_states=frozenset({"DELETED"}), interval_seconds=0.01),
+            not_found_exceptions=(ResourceGone,),
+            sleep=lambda _delay: asyncio.sleep(0),
+        )
+    )
+
+
+def test_deletion_waiter_times_out_without_claiming_deleted() -> None:
+    async def fetch() -> SimpleNamespace:
+        return SimpleNamespace(status="ACTIVE")
+
+    with pytest.raises(WaiterTimeoutError, match="deletion"):
+        asyncio.run(
+            wait_for_deleted(
+                fetch,
+                config=WaiterConfig(
+                    target_states=frozenset({"DELETED"}),
+                    interval_seconds=1,
+                    timeout_seconds=1,
+                ),
+                not_found_exceptions=(LookupError,),
                 sleep=lambda _delay: asyncio.sleep(0),
                 monotonic=iter([0.0, 2.0]).__next__,
             )

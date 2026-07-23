@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from datetime import date, datetime
 from typing import Any
 
 from keystoneauth1 import exceptions as ks_exc
@@ -20,6 +21,16 @@ COLLECTIONS = (
     "instance",
 )
 
+_DROP = object()
+_SENSITIVE_KEY_PARTS = (
+    "password",
+    "token",
+    "authorization",
+    "private_key",
+    "user_data",
+    "ca_cert",
+)
+
 
 def _value(resource: Any, name: str, default: Any = None) -> Any:
     value = getattr(resource, name, default)
@@ -28,6 +39,42 @@ def _value(resource: Any, name: str, default: Any = None) -> Any:
 
 def _iso(value: Any) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else None
+
+
+def _is_sensitive_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(part in lowered for part in _SENSITIVE_KEY_PARTS)
+
+
+def _sanitize_value(value: Any, *, key: str = "", depth: int = 0) -> Any:
+    """Convert nested provider values into bounded JSON-safe primitives."""
+    if depth > 8 or _is_sensitive_key(key):
+        return _DROP
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if isinstance(value, bytes):
+        return _DROP
+    resource_id = getattr(value, "id", None)
+    if resource_id is not None and not isinstance(value, Mapping):
+        return {"id": str(resource_id)}
+    if isinstance(value, Mapping):
+        mapping_result: dict[str, Any] = {}
+        for child_key, child_value in value.items():
+            normalized_key = str(child_key)
+            sanitized = _sanitize_value(child_value, key=normalized_key, depth=depth + 1)
+            if sanitized is not _DROP:
+                mapping_result[normalized_key] = sanitized
+        return mapping_result
+    if isinstance(value, list | tuple | set | frozenset):
+        result: list[Any] = []
+        for child_value in value:
+            sanitized = _sanitize_value(child_value, depth=depth + 1)
+            if sanitized is not _DROP:
+                result.append(sanitized)
+        return result
+    return _DROP
 
 
 def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
@@ -84,6 +131,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
             "OS-EXT-AZ:availability_zone",
             "addresses",
             "metadata",
+            "attachments",
             "launched_at",
             "terminated_at",
         ),
@@ -95,12 +143,9 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
             continue
         if field in {"flavor", "image"} and hasattr(value, "id"):
             value = str(value.id)
-        if isinstance(value, str | int | float | bool) or value is None:
-            attributes[key] = value
-        elif isinstance(value, list | dict):
-            attributes[key] = value
-        else:
-            attributes[key] = str(value)
+        sanitized = _sanitize_value(value, key=key)
+        if sanitized is not _DROP:
+            attributes[key] = sanitized
     item["attributes"] = attributes
     return item
 

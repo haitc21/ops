@@ -22,7 +22,7 @@ from ops.observability.redaction import redact_mapping
 from ops.openstack.errors import normalize_openstack_exception
 from ops.openstack.factory import openstack_connection
 from ops.openstack.inventory import map_resource
-from ops.openstack.waiter import WaiterConfig, wait_for_state
+from ops.openstack.waiter import WaiterConfig, wait_for_deleted, wait_for_state
 
 
 def _event(
@@ -132,6 +132,11 @@ async def instance_action(
             if expected_action is InstanceAction.GET:
                 result_instance = map_resource("instance", server)
             elif expected_action is InstanceAction.DELETE:
+                await wait_for_deleted(
+                    lambda: asyncio.to_thread(compute.get_server, provider_id),
+                    config=WaiterConfig(target_states=frozenset({"DELETED"})),
+                    not_found_exceptions=(os_exc.ResourceNotFound,),
+                )
                 result_instance = {
                     "provider_resource_id": provider_id,
                     "name": getattr(server, "name", provider_id),

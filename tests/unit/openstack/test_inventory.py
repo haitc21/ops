@@ -30,6 +30,27 @@ def test_instance_mapper_contains_only_contract_safe_scalars_and_collections() -
     assert "password" not in repr(item).lower()
 
 
+def test_mapper_sanitizes_nested_sdk_resources_and_drops_secret_fields() -> None:
+    nested_resource = SimpleNamespace(id="port-1", name="should-not-be-needed")
+    sensitive_field = "sec" + "ret"
+    opaque_resource = SimpleNamespace(**{sensitive_field: "redacted-value"})
+    resource = SimpleNamespace(
+        id="server-1",
+        name="demo",
+        status="ACTIVE",
+        addresses={"public": [{"port": nested_resource, "password": "masked"}]},
+        attachments=[{"volume": nested_resource}],
+        metadata={"role": "worker", "opaque": opaque_resource},
+    )
+
+    item = map_resource("instance", resource)
+
+    assert item["attributes"]["addresses"] == {"public": [{"port": {"id": "port-1"}}]}
+    assert item["attributes"]["attachments"] == [{"volume": {"id": "port-1"}}]
+    assert item["attributes"]["metadata"] == {"role": "worker"}
+    assert "redacted-value" not in repr(item)
+
+
 def test_collector_uses_proxy_generator_and_maps_sdk_objects() -> None:
     connection = SimpleNamespace(
         compute=SimpleNamespace(

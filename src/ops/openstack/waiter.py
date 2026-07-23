@@ -52,3 +52,34 @@ async def wait_for_state(
         if remaining <= 0:
             raise WaiterTimeoutError("provider state waiter timed out")
         await sleep(min(config.interval_seconds, remaining))
+
+
+async def wait_for_deleted(
+    fetch: Callable[[], Awaitable[Any]],
+    *,
+    config: WaiterConfig,
+    not_found_exceptions: tuple[type[BaseException], ...],
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> None:
+    """Wait until a provider reports a resource as absent.
+
+    OpenStack commonly confirms deletion by returning 404 rather than by
+    exposing a stable DELETED resource state. The exception tuple keeps this
+    generic waiter independent of any provider SDK.
+    """
+    deadline = monotonic() + config.timeout_seconds
+    while True:
+        try:
+            resource = await fetch()
+        except not_found_exceptions:
+            return
+        state = str(getattr(resource, "status", "")).upper()
+        if state in config.deleted_states:
+            return
+        if state in config.terminal_error_states:
+            raise WaiterProviderError("provider resource entered an error state")
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise WaiterTimeoutError("provider deletion waiter timed out")
+        await sleep(min(config.interval_seconds, remaining))
