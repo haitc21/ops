@@ -30,6 +30,6 @@ def test_development_settings_include_openstack_timeouts(
 
     settings = Settings(_env_file=None)
     assert settings.rabbitmq_url.startswith("amqp")
-    assert settings.cps_base_url.startswith("http")
+    assert settings.cps_base_url == "http://127.0.0.1:8002"
     assert settings.openstack_timeout_seconds > 0
     assert settings.openstack_verify_tls is True

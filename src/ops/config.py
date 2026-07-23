@@ -40,7 +40,7 @@ class Settings(BaseSettings):
             if not self.rabbitmq_url:
                 self.rabbitmq_url = "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"
             if not self.cps_base_url:
-                self.cps_base_url = "http://127.0.0.1:8000"
+                self.cps_base_url = "http://127.0.0.1:8002"
             return self
 
         missing: list[str] = []

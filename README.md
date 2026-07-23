@@ -20,8 +20,24 @@ uv sync --all-extras --frozen
 ## Run
 
 ```bash
+export OPS_CPS_BASE_URL=http://127.0.0.1:8002
 uv run ops serve --host 127.0.0.1 --port 8001
 uv run ops worker --once
+```
+
+`OPS_CPS_BASE_URL` must point to the CPS internal credential resolver listener
+(`:8002` in the development environment), not the public CPS listener on
+`:8000`. The development settings use this internal URL by default; set the
+variable explicitly in deployment environments.
+
+### Docker
+
+Build and run the OPS API:
+
+```bash
+docker build -t cmp-ops .
+docker run --rm --env-file .env -p 8001:8001 \
+  -e OPS_CPS_BASE_URL=http://127.0.0.1:8002 cmp-ops
 ```
 
 ## Quality gates

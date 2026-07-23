@@ -24,6 +24,7 @@ RUN uv sync --frozen --no-dev \
 
 ENV PATH="/app/.venv/bin:${PATH}"
 
+# The same image can also be started with `ops worker`.
 EXPOSE 8001
 
 CMD ["ops", "serve", "--host", "0.0.0.0", "--port", "8001"]
