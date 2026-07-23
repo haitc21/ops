@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from keystoneauth1 import exceptions as ks_exc
+from openstack import exceptions as os_exc
+
 COLLECTIONS = (
     "region",
     "project",
@@ -139,3 +142,43 @@ def collect_targeted_resource(
     method = getattr(proxy, getter[1])
     resource = method(provider_resource_id)
     return map_resource(resource_type, resource)
+
+
+def collect_instance_relationships(
+    connection: Any, instance_id: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ports: list[dict[str, Any]] = []
+    volumes: list[dict[str, Any]] = []
+    try:
+        if connection.has_service("network"):
+            ports = [
+                map_resource("port", item)
+                for item in connection.network.ports(device_id=instance_id)
+            ]
+    except (
+        AttributeError,
+        TypeError,
+        ks_exc.EndpointNotFound,
+        os_exc.EndpointNotFound,
+        os_exc.ServiceDisabledException,
+        os_exc.ServiceDiscoveryException,
+    ):
+        pass
+    try:
+        if connection.has_service("block-storage"):
+            for item in connection.block_storage.volumes():
+                if any(
+                    attachment.get("server_id") == instance_id
+                    for attachment in (item.attachments or [])
+                ):
+                    volumes.append(map_resource("volume", item))
+    except (
+        AttributeError,
+        TypeError,
+        ks_exc.EndpointNotFound,
+        os_exc.EndpointNotFound,
+        os_exc.ServiceDisabledException,
+        os_exc.ServiceDiscoveryException,
+    ):
+        pass
+    return ports, volumes

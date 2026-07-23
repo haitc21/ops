@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import uuid
 from typing import Any
+
+from openstack import exceptions as os_exc
 
 from ops.application.credential_resolver import CpsResolutionError, CredentialResolver
 from ops.application.handlers.registry import TypedHandlerFn
@@ -20,13 +23,15 @@ from ops.messaging.consumer import HandlerFailedResult, HandlerRetryableError, H
 from ops.observability.redaction import redact_mapping
 from ops.openstack.errors import normalize_openstack_exception
 from ops.openstack.factory import openstack_connection
-from ops.openstack.inventory import map_resource
+from ops.openstack.inventory import collect_instance_relationships, map_resource
 from ops.openstack.waiter import (
     WaiterConfig,
     WaiterProviderError,
     WaiterTimeoutError,
     wait_for_state,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _event(
@@ -62,15 +67,13 @@ def _create_kwargs(payload: InstanceCommandPayload, operation_id: uuid.UUID) -> 
     if payload.create is None:
         raise ValueError("create payload is required")
     request = payload.create
-    networks = [{"net-id": value} for value in request.network_provider_resource_ids]
-    networks.extend({"port-id": value} for value in request.port_provider_resource_ids)
+    networks = [{"uuid": value} for value in request.network_provider_resource_ids]
+    networks.extend({"port": value} for value in request.port_provider_resource_ids)
     kwargs: dict[str, Any] = {
         "name": request.name,
         "flavor_id": request.flavor_provider_resource_id,
         "networks": networks,
-        "security_groups": [
-            {"name": value} for value in request.security_group_provider_resource_ids
-        ],
+        "security_groups": request.security_group_provider_resource_ids,
         "key_name": request.key_name,
         "availability_zone": request.availability_zone,
         "config_drive": request.config_drive,
@@ -113,24 +116,51 @@ async def instance_create(
                 compute.find_server, f"cmp-operation-{command.operation_id}", ignore_missing=True
             )
             if existing is None:
-                existing = await asyncio.to_thread(
-                    compute.create_server, **_create_kwargs(payload, command.operation_id)
-                )
+                try:
+                    existing = await asyncio.to_thread(
+                        compute.create_server, **_create_kwargs(payload, command.operation_id)
+                    )
+                except os_exc.EndpointNotFound:
+                    # Nova may commit the server before the SDK loses the response;
+                    # reconcile by the idempotency marker before reporting failure.
+                    existing = await asyncio.to_thread(
+                        compute.find_server,
+                        f"cmp-operation-{command.operation_id}",
+                        ignore_missing=True,
+                    )
+                    if existing is None:
+                        raise
             progress = _event(
                 command,
                 OPERATION_PROGRESS,
                 {"progress": 20, "state": "RUNNING", "message": "instance create started"},
                 "instance.progress.running",
             )
-            instance = await wait_for_state(
-                lambda: asyncio.to_thread(compute.get_server, existing.id),
-                config=WaiterConfig(target_states=frozenset({"ACTIVE", "SHUTOFF"})),
-            )
+            try:
+                instance = await wait_for_state(
+                    lambda: asyncio.to_thread(compute.get_server, existing.id),
+                    config=WaiterConfig(target_states=frozenset({"ACTIVE", "SHUTOFF"})),
+                )
+            except (os_exc.EndpointNotFound, WaiterProviderError):
+                # Some dev clouds expose a stale compute endpoint after create;
+                # retain Nova's authoritative create response for reconciliation.
+                try:
+                    instance = await asyncio.to_thread(compute.get_server, existing.id)
+                except os_exc.SDKException:
+                    instance = existing
+                if str(getattr(instance, "status", "")).upper() not in {"ACTIVE", "SHUTOFF"}:
+                    raise
+            try:
+                ports, volumes = await asyncio.to_thread(
+                    collect_instance_relationships, connection, str(instance.id)
+                )
+            except os_exc.SDKException:
+                ports, volumes = [], []
             result = {
                 "action": InstanceAction.CREATE.value,
                 "instance": map_resource("instance", instance),
-                "ports": [],
-                "volumes": [],
+                "ports": ports,
+                "volumes": volumes,
             }
             completed = _event(
                 command, OPERATION_COMPLETED, {"result": result}, "instance.completed"
@@ -161,6 +191,7 @@ async def instance_create(
             )
         )
     except Exception as exc:
+        logger.warning("instance create failed", extra={"error_type": type(exc).__name__})
         error = normalize_openstack_exception(exc, service="compute")
         if error.retryable:
             return HandlerRetryableError(error=error, retry_reason="PROVIDER_UNAVAILABLE")

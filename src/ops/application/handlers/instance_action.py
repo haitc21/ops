@@ -16,7 +16,7 @@ from ops.contracts.errors import CommonError
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.envelope import MessageEnvelope
 from ops.contracts.messages.instance import InstanceAction, InstanceCommandPayload
-from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED
+from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED, OPERATION_PROGRESS
 from ops.messaging.consumer import HandlerFailedResult, HandlerRetryableError, HandlerSuccess
 from ops.observability.redaction import redact_mapping
 from ops.openstack.errors import normalize_openstack_exception
@@ -25,11 +25,16 @@ from ops.openstack.inventory import map_resource
 from ops.openstack.waiter import WaiterConfig, wait_for_state
 
 
-def _event(command: MessageEnvelope, payload: dict[str, Any], label: str) -> bytes:
+def _event(
+    command: MessageEnvelope,
+    payload: dict[str, Any],
+    label: str,
+    message_type: str = OPERATION_COMPLETED,
+) -> bytes:
     event = MessageEnvelope.model_validate(
         {
             "message_id": uuid.uuid5(command.operation_id, label),
-            "message_type": OPERATION_COMPLETED,
+            "message_type": message_type,
             "schema_version": command.schema_version,
             "occurred_at": command.occurred_at,
             "correlation_id": command.correlation_id,
@@ -38,7 +43,7 @@ def _event(command: MessageEnvelope, payload: dict[str, Any], label: str) -> byt
             "provider_id": command.provider_id,
             "provider_connection_id": command.provider_connection_id,
             "trace_context": redact_mapping(dict(command.trace_context)),
-            "payload": {"result": payload},
+            "payload": payload if message_type == OPERATION_PROGRESS else {"result": payload},
         }
     )
     return json.dumps(
@@ -95,7 +100,7 @@ async def instance_action(
             except os_exc.ResourceNotFound:
                 if expected_action is not InstanceAction.DELETE:
                     raise
-                result = {
+                tombstone_result: dict[str, Any] = {
                     "action": expected_action.value,
                     "instance": {
                         "provider_resource_id": provider_id,
@@ -108,7 +113,10 @@ async def instance_action(
                 }
                 return HandlerSuccess(
                     result_messages=(
-                        (OPERATION_COMPLETED, _event(command, result, "instance.completed")),
+                        (
+                            OPERATION_COMPLETED,
+                            _event(command, tombstone_result, "instance.completed"),
+                        ),
                     )
                 )
             if expected_action is InstanceAction.START and str(server.status).upper() == "SHUTOFF":
@@ -137,15 +145,22 @@ async def instance_action(
                     config=WaiterConfig(target_states=frozenset({target})),
                 )
                 result_instance = map_resource("instance", server)
-            result = {
+            operation_result: dict[str, Any] = {
                 "action": expected_action.value,
                 "instance": result_instance,
                 "ports": [],
                 "volumes": [],
             }
+            progress = _event(
+                command,
+                {"progress": 20, "state": "RUNNING", "message": "instance action started"},
+                "instance.action.progress.running",
+                OPERATION_PROGRESS,
+            )
             return HandlerSuccess(
                 result_messages=(
-                    (OPERATION_COMPLETED, _event(command, result, "instance.completed")),
+                    (OPERATION_PROGRESS, progress),
+                    (OPERATION_COMPLETED, _event(command, operation_result, "instance.completed")),
                 )
             )
     except CpsResolutionError as exc:
