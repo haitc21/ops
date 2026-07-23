@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- CPython `>=3.12,<3.13`; PostgreSQL 18; RabbitMQ 4.1; Valkey 9.1.0 exists in Compose but **no Valkey runtime dependency** in CPS/OPS for Sprint 1B.
+- CPython `>=3.12,<3.13`; PostgreSQL 18; RabbitMQ 4.1.
 - CPS must not depend on OpenStackSDK; OPS must not add PostgreSQL or credential storage.
 - CPS is the only editable source of message contracts; OPS pins byte-for-byte after CPS export.
 - Unknown major `schema_version` is rejected; additive minor fields are accepted.
@@ -818,7 +818,7 @@ uv run pytest tests/integration/messaging/test_topology.py -m integration -q
 
 - [x] Host `.husky/pre-commit` in both repos — **exit 0** (including staged fix state).
 
-- [x] Build from each repo root: `docker build -t cps:sprint1b .` and `docker build -t ops:sprint1b .` — **exit 0**; Compose remains the PostgreSQL/RabbitMQ/Valkey infrastructure stack.
+- [x] Build from each repo root: `docker build -t cps:sprint1b .` and `docker build -t ops:sprint1b .` — **exit 0**; Compose remains the PostgreSQL/RabbitMQ infrastructure stack.
 
 - [x] Read-only `detect-secrets-hook --baseline .secrets.baseline` over NUL-safe tracked paths; baselines unchanged (raw LF SHA-256: CPS `3F508AAA63EC0461BC30848D6B46AEB37FC4002EDB8870FEB8D7EB8D5A690250`, OPS `1089606D34E129B89DCAD807B958747A65FF5E45E9AA93FE2E171ECC514EDA26`; closure evidence `D44DC71F8B1CE2D873CE45D7A13781E0A361B68979A137A8D37A06E031E81BDE` / `48EBCA6C0199E4331362AF974970DD49528CEAEB16C483208F0A226CF4058E8F` were CRLF-transcoded reads on Windows — `.secrets.baseline text eol=lf` stabilizes the gate); no tracked `.env`/credentials/keys.
 

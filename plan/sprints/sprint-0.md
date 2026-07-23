@@ -2,7 +2,7 @@
 
 **Dates:** 2026-07-17 to 2026-07-31
 **Capacity:** focused foundation delivery
-**Sprint Goal:** OPS installs from a pinned CPython 3.12 lockfile, starts health API and worker entrypoints with typed RabbitMQ/OpenStack settings and secret-safe logging, readiness reflects RabbitMQ only, and CI quality gates pass without SQLAlchemy/PostgreSQL/MongoDB/Valkey dependencies.
+**Sprint Goal:** OPS installs from a pinned CPython 3.12 lockfile, starts health API and worker entrypoints with typed RabbitMQ/OpenStack settings and secret-safe logging, readiness reflects RabbitMQ only, and CI quality gates pass without SQLAlchemy/PostgreSQL dependencies.
 
 ## Selected stories
 
@@ -29,7 +29,7 @@
 ### OPS-001 — Bootstrap a reproducible Python service
 
 - **Depends on:** none
-- **Acceptance:** clean locked install; worker and health API start; quality commands pass; no DB/Valkey dependencies; OpenStackSDK 4.17.0 present but unused for provider ops.
+- **Acceptance:** clean locked install; worker and health API start; quality commands pass; no business database dependencies; OpenStackSDK 4.17.0 present but unused for provider ops.
 - **Verification:** lock install, entrypoint smoke, dependency absence checks, Python 3.12 runtime.
 
 ### OPS-002 — Typed configuration and secret-safe observability
@@ -70,7 +70,7 @@
   - `python -m detect_secrets scan --baseline .secrets.baseline ...` — ok
   - `docker build -t ops:sprint0 .` — ok
   - `git diff --check` — clean
-  - Compose postgres/rabbitmq/valkey remained healthy; OPS readiness uses RabbitMQ only
+  - Compose PostgreSQL/RabbitMQ remained healthy; OPS readiness uses RabbitMQ only
 - Hardening commits: `af36259` (worker/logging/contracts/integration defaults + cancellation path)
 - CPS contract checksum: empty Sprint 0 pin (`fixtures: {}`)
 - Discovered OpenStack capability/version notes: N/A (no provider operations)

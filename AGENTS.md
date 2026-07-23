@@ -38,7 +38,7 @@ RTK does not resolve PowerShell cmdlets such as `Get-ChildItem` or `Get-Content`
 
 ## Architectural boundaries
 
-- OPS is a stateless OpenStack adapter. It has no business database, SQLAlchemy, Alembic, PostgreSQL, MongoDB, or Valkey dependency.
+- OPS is a stateless OpenStack adapter. It has no business database, SQLAlchemy, Alembic, or PostgreSQL dependency.
 - CPS owns common contracts, provider configuration, credentials, inventory, operations, and durable truth.
 - OPS resolves credentials just in time, retains them only in memory, and never publishes/logs/caches them.
 - OpenStack access uses supported OpenStackSDK connection/proxy/resource APIs. Do not add direct Nova/Neutron/Cinder clients or deprecated `python-openstacksdk`.

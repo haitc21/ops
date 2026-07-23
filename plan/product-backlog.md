@@ -7,7 +7,7 @@
 - **Sprint/Priority/Points:** 0 / Must / 5
 - **Outcome:** stateless service builds and runs consistently on Python 3.12.
 - **Tasks:** `pyproject.toml`, src layout, lockfile, FastAPI health app, worker entrypoint, Python 3.12 runtime Dockerfile, lint/type/test tooling.
-- **Acceptance:** clean locked install; worker and health API start; quality commands pass; no DB/Valkey dependencies exist.
+- **Acceptance:** clean locked install; worker and health API start; quality commands pass; no business database dependencies exist.
 
 ### OPS-002 — Typed configuration and secret-safe observability
 

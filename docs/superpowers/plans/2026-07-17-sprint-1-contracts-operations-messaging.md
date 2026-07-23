@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - CPython `>=3.12,<3.13`; never Python 3.14.
-- CPS must not depend on OpenStackSDK; OPS must not add database or Valkey dependencies.
+- CPS must not depend on OpenStackSDK; OPS must not add a business database dependency.
 - CPS is the only editable source of common contracts. OPS copies contracts byte-for-byte.
 - Manifest covers every non-`.gitkeep` file below `fixtures/` and `jsonschema/`.
 - Unknown major `schema_version` is rejected; additive unknown fields are accepted.

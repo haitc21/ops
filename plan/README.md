@@ -11,7 +11,7 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates connect
 ## Working agreement
 
 - CPS is the canonical contract/schema source; OPS pins a reviewed copy and checksum.
-- OPS never adds SQLAlchemy, PostgreSQL, MongoDB, or Valkey business dependencies.
+- OPS never adds SQLAlchemy, PostgreSQL, or other business database dependencies.
 - Provider behavior is accessed through supported OpenStackSDK proxy/resource APIs.
 - Compatibility is discovered per cloud; code does not lock to an OpenStack release.
 - Handlers are safe under RabbitMQ at-least-once delivery and process restart.
