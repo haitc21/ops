@@ -9,6 +9,7 @@ from ops.config import Settings, get_settings
 from ops.infrastructure.health import HealthChecks
 from ops.messaging.lifecycle import WorkerLifecycle
 from ops.observability.logging import configure_logging
+from ops.observability.metrics import metrics
 from ops.observability.middleware import CorrelationIdMiddleware
 
 
@@ -22,6 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.health_checks = HealthChecks(resolved)
     app.state.worker_lifecycle = WorkerLifecycle()
     app.state.openstack_available = True
+    app.state.metrics = metrics
     app.add_middleware(CorrelationIdMiddleware)
     app.include_router(health_router)
     return app

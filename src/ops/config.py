@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     cps_timeout_seconds: int = 30
     openstack_timeout_seconds: int = 30
     openstack_verify_tls: bool = True
+    worker_prefetch_count: int = 10
+    worker_shutdown_grace_seconds: float = 30.0
     api_host: str = "0.0.0.0"
     api_port: int = 8001
 

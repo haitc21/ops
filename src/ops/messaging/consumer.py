@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, cast
@@ -23,6 +24,7 @@ from ops.messaging.retry import (
     publish_retry,
     resolve_original_command_routing_key,
 )
+from ops.observability.metrics import metrics
 from ops.openstack.retry import classify_retry
 
 logger = logging.getLogger(__name__)
@@ -114,11 +116,14 @@ class CommandConsumer:
     shutdown_grace_seconds: float = DEFAULT_SHUTDOWN_GRACE_SECONDS
     _consumer_tag: str | None = field(default=None, init=False)
     _queue: AbstractQueue | None = field(default=None, init=False)
+    prefetch_count: int = DEFAULT_PREFETCH_COUNT
 
     async def start(self, channel: AbstractChannel, queue: AbstractQueue) -> str:
         self.channel = channel
         self._queue = queue
-        await channel.set_qos(prefetch_count=DEFAULT_PREFETCH_COUNT)
+        if self.prefetch_count <= 0:
+            raise ValueError("prefetch count must be positive")
+        await channel.set_qos(prefetch_count=self.prefetch_count)
         self._consumer_tag = await queue.consume(self._on_message, no_ack=False)
         return self._consumer_tag
 
@@ -193,12 +198,20 @@ class CommandConsumer:
                 return message_id, False
 
             actions.handler_called = True
+            started = time.monotonic()
+            metrics.increment("ops_provider_handler_calls_total")
             try:
                 outcome = await self.handler(envelope, metadata, original_routing_key)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 outcome = HandlerUnexpectedError()
+                metrics.increment("ops_provider_handler_errors_total")
+            finally:
+                metrics.increment(
+                    "ops_provider_handler_duration_seconds_total",
+                    time.monotonic() - started,
+                )
             completed = await self._apply_outcome(
                 message,
                 actions,
@@ -234,6 +247,7 @@ class CommandConsumer:
                     actions.channel_closed = True
                 return False
             actions.result_published = True
+            metrics.increment("ops_commands_succeeded_total")
             await message.ack()
             actions.acked = True
             return True
@@ -256,6 +270,7 @@ class CommandConsumer:
                 actions.acked = True
                 return True
             await message.reject(requeue=False)
+            metrics.increment("ops_commands_dlq_total")
             actions.rejected = True
             actions.reject_requeue = False
             return False
@@ -288,6 +303,7 @@ class CommandConsumer:
         )
         if not decision.retryable or decision.exhausted:
             await message.reject(requeue=False)
+            metrics.increment("ops_commands_dlq_total")
             actions.rejected = True
             actions.reject_requeue = False
             return False
@@ -302,6 +318,7 @@ class CommandConsumer:
                 original_routing_key=original_routing_key,
             )
             actions.retry_published = True
+            metrics.increment("ops_commands_retried_total")
             await message.ack()
             actions.acked = True
             return True

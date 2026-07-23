@@ -204,6 +204,8 @@ async def run_worker(
                         event_exchange=topology.event_exchange,
                         handler=effective_handler,
                         channel=channel,
+                        prefetch_count=settings.worker_prefetch_count,
+                        shutdown_grace_seconds=settings.worker_shutdown_grace_seconds,
                     )
                     await consumer.start(channel, topology.command_queue)
                     backoff_seconds = DEFAULT_RECONNECT_BACKOFF_SECONDS
