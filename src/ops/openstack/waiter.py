@@ -1,0 +1,54 @@
+"""Deterministic OpenStack state waiters used by lifecycle handlers."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
+
+
+class WaiterTimeoutError(TimeoutError):
+    """Provider resource did not reach the requested state before the deadline."""
+
+
+class WaiterProviderError(RuntimeError):
+    """Provider resource entered an unrecoverable state while waiting."""
+
+
+@dataclass(frozen=True, slots=True)
+class WaiterConfig:
+    target_states: frozenset[str]
+    terminal_error_states: frozenset[str] = frozenset({"ERROR"})
+    deleted_states: frozenset[str] = frozenset({"DELETED", "DELETED_COMPLETE"})
+    interval_seconds: float = 1.0
+    timeout_seconds: float = 300.0
+
+    def __post_init__(self) -> None:
+        if not self.target_states or self.interval_seconds <= 0 or self.timeout_seconds <= 0:
+            raise ValueError("waiter configuration is invalid")
+
+
+async def wait_for_state(
+    fetch: Callable[[], Awaitable[Any]],
+    *,
+    config: WaiterConfig,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> Any:
+    """Poll a provider resource without treating polling as command retry."""
+    deadline = monotonic() + config.timeout_seconds
+    while True:
+        resource = await fetch()
+        state = str(getattr(resource, "status", "")).upper()
+        if state in config.target_states:
+            return resource
+        if state in config.terminal_error_states:
+            raise WaiterProviderError("provider resource entered an error state")
+        if state in config.deleted_states:
+            raise WaiterProviderError("provider resource disappeared while waiting")
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise WaiterTimeoutError("provider state waiter timed out")
+        await sleep(min(config.interval_seconds, remaining))

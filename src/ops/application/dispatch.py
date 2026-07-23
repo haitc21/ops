@@ -6,6 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from ops.application.handlers.connection_validate import make_connection_validate
+from ops.application.handlers.instance_action import make_instance_action
+from ops.application.handlers.instance_create import make_instance_create
 from ops.application.handlers.inventory_collect import (
     make_inventory_collect,
     make_inventory_refresh,
@@ -15,7 +17,18 @@ from ops.application.handlers.stub_connection_validate import make_stub_connecti
 from ops.application.validation import EnvelopeReject, validate_command_envelope
 from ops.config import Settings
 from ops.contracts.messages.delivery import DeliveryMetadata
-from ops.contracts.messages.types import CONNECTION_VALIDATE, INVENTORY_COLLECT, INVENTORY_REFRESH
+from ops.contracts.messages.instance import InstanceAction
+from ops.contracts.messages.types import (
+    CONNECTION_VALIDATE,
+    INSTANCE_CREATE,
+    INSTANCE_DELETE,
+    INSTANCE_GET,
+    INSTANCE_REBOOT,
+    INSTANCE_START,
+    INSTANCE_STOP,
+    INVENTORY_COLLECT,
+    INVENTORY_REFRESH,
+)
 from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerOutcome
 
 
@@ -41,6 +54,12 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
     registry.register(CONNECTION_VALIDATE, make_connection_validate(settings))
     registry.register(INVENTORY_COLLECT, make_inventory_collect(settings))
     registry.register(INVENTORY_REFRESH, make_inventory_refresh(settings))
+    registry.register(INSTANCE_CREATE, make_instance_create(settings))
+    registry.register(INSTANCE_GET, make_instance_action(settings, InstanceAction.GET))
+    registry.register(INSTANCE_START, make_instance_action(settings, InstanceAction.START))
+    registry.register(INSTANCE_STOP, make_instance_action(settings, InstanceAction.STOP))
+    registry.register(INSTANCE_REBOOT, make_instance_action(settings, InstanceAction.REBOOT))
+    registry.register(INSTANCE_DELETE, make_instance_action(settings, InstanceAction.DELETE))
     registry.freeze()
     return registry
 
