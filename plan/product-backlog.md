@@ -191,6 +191,174 @@
 
 - OpenStack notification/event bus integration.
 - Existing-volume boot mode.
-- Floating IP, snapshot, resize, rebuild, rescue, shelve, migration, and console operations.
-- Provider-side security group/key pair/network/volume CRUD.
+- Resize, rebuild, rescue, shelve, migration, and console operations.
 - Shared contract package after multiple provider services justify it.
+
+## Epic OPS-E7 — Scope and identity inventory
+
+### OPS-701 — Pin scope/resource-operation contracts
+
+- **Sprint/Priority/Points:** 7 / Must / 5
+- **Depends on:** CPS-701
+- **Acceptance:** pinned artifacts/checksum match CPS; malformed scope/owner
+  combinations reject before provider access; existing fixtures remain valid.
+
+### OPS-702 — Effective connection-scope discovery
+
+- **Sprint/Priority/Points:** 7 / Must / 8
+- **Depends on:** OPS-202, CPS-702
+- **Acceptance:** supported SDK behavior reports effective system/domain/project
+  scope and operation capabilities without exposing token/catalog or inferring
+  authority from username.
+
+### OPS-703 — Domain/project collectors and mappers
+
+- **Sprint/Priority/Points:** 7 / Must / 8
+- **Depends on:** OPS-301..305, CPS-703
+- **Acceptance:** paginated collectors emit safe typed identities; forbidden
+  domain collection is explicit; project collection remains project-scope
+  compatible; targeted NotFound alone emits tombstone.
+
+## Epic OPS-E8 — Identity lifecycle and quotas
+
+### OPS-801 — Domain/project lifecycle handlers
+
+- **Sprint/Priority/Points:** 8 / Must / 13
+- **Depends on:** OPS-701..703, CPS-801
+- **Acceptance:** create/update/disable/delete use scope/capability checks,
+  provider preconditions, bounded waiters, replay detection, normalized result,
+  conflict, and already-absent behavior.
+
+### OPS-802 — Role assignment collectors/handlers
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** OPS-703, CPS-802
+- **Acceptance:** role inventory and assignment ensure/revoke are scope-aware,
+  idempotent, and secret-free.
+
+### OPS-803 — Quota collectors/handlers
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** OPS-203, CPS-803
+- **Acceptance:** compute/network/block-storage quota behavior normalizes
+  unlimited values and partial service failure; replay checks current values.
+
+### OPS-804 — Identity real-cloud acceptance
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** OPS-801..803 and CPS-804
+- **Acceptance:** disposable identity lifecycle, replay/restart, and cleanup
+  pass with capability/version evidence.
+
+## Epic OPS-E9 — Network control
+
+### OPS-901 — Network inventory expansion
+
+- **Sprint/Priority/Points:** 9 / Must / 13
+- **Depends on:** OPS-303..305, CPS-901
+- **Acceptance:** routers/interfaces/security groups/rules/floating IPs and
+  ownership relationships map and reconcile without SDK leakage.
+
+### OPS-902 — Network/subnet handlers
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** OPS-701, OPS-901, CPS-902
+- **Acceptance:** CRUD uses supported SDK proxies, strict provider ownership,
+  replay preconditions, dependency conflicts, and normalized snapshots.
+
+### OPS-903 — Router/interface handlers
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** OPS-902, CPS-903
+- **Acceptance:** router CRUD and interface ensure/remove recover from duplicate
+  and partial relationship delivery.
+
+### OPS-904 — Port/security handlers
+
+- **Sprint/Priority/Points:** 9 / Must / 13
+- **Depends on:** OPS-901..902, CPS-904
+- **Acceptance:** port/security-group/rule lifecycle validates project,
+  network, fixed IP, protocol, and ranges before mutation.
+
+### OPS-905 — Floating-IP handlers
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** OPS-902..904, CPS-905
+- **Acceptance:** allocate/associate/disassociate/release is relationship-aware,
+  replay-safe, and returns affected port/network snapshots.
+
+### OPS-906 — Network topology acceptance
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** OPS-901..905 and CPS-906
+- **Acceptance:** disposable topology creation/removal, restart, drift, and
+  cleanup pass without direct provider mutation outside the test harness.
+
+## Epic OPS-E10 — Storage, image, and compute catalog
+
+### OPS-1001 — Volume-type/snapshot collectors
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** OPS-301..305, CPS-1001
+- **Acceptance:** typed volume types/snapshots paginate, map, refresh, and
+  tombstone safely.
+
+### OPS-1002 — Volume lifecycle/attachment handlers
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** OPS-1001, OPS-406, CPS-1002
+- **Acceptance:** create/update/extend/attach/detach/delete is state-aware,
+  bounded, replay-safe, multiattach-capability aware, and never double-deletes
+  Nova-owned root volumes.
+
+### OPS-1003 — Snapshot lifecycle handlers
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** OPS-1001..1002, CPS-1003
+- **Acceptance:** snapshot create/update/delete has waiters, dependency checks,
+  replay behavior, and normalized tombstones.
+
+### OPS-1004 — Image metadata/import/access handlers
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** OPS-701, CPS-1004
+- **Acceptance:** supported Glance operations are replay-safe; bytes/signed
+  credentials never traverse RabbitMQ; unsupported upload reports capability.
+
+### OPS-1005 — Availability-zone/flavor collectors and handlers
+
+- **Sprint/Priority/Points:** 10 / Should / 13
+- **Depends on:** OPS-301, CPS-1005
+- **Acceptance:** AZ, flavor specs/access map safely; admin mutations are
+  capability/scope gated and use supported compute APIs.
+
+### OPS-1006 — Storage/catalog acceptance
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** OPS-1001..1005 and CPS-1006
+- **Acceptance:** storage/catalog workflows pass compatibility, replay,
+  convergence, and cleanup gates.
+
+## Epic OPS-E11 — Expanded control-plane release
+
+### OPS-1101 — Cross-resource replay and drift suite
+
+- **Sprint/Priority/Points:** 11 / Must / 13
+- **Depends on:** OPS-E8..E10
+- **Acceptance:** provider state checks converge identity, network, storage, and
+  catalog operations after duplicate, restart, direct drift, and partial
+  success.
+
+### OPS-1102 — Compatibility and operational controls
+
+- **Sprint/Priority/Points:** 11 / Must / 8
+- **Depends on:** OPS-1101
+- **Acceptance:** service/API versions, extensions, scope behavior, metrics,
+  DLQ replay, and cleanup procedures are documented and tested.
+
+### OPS-1103 — Real-cloud release acceptance
+
+- **Sprint/Priority/Points:** 11 / Must / 13
+- **Depends on:** OPS-1101..1102 and CPS-1104
+- **Acceptance:** approved provider matrix passes with no leaked secret,
+  duplicate mutation, orphaned disposable resource, or lost terminal result.

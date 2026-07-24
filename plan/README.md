@@ -43,6 +43,15 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates connect
 | 3 | Normalized inventory | Collectors, mappers, batching, targeted refresh | CPS safely reconciles all scoped resources |
 | 4 | VM lifecycle | Create/detail/start/stop/reboot/delete and waiters | CPS operations and inventory converge |
 | 5 | Recovery and release readiness | Replay safety, resilience, metrics, real-cloud acceptance | Restart/redelivery/drift suite passes |
+| 6 | Design alignment and demo readiness | Capability, convergence, mapping, and image hardening | OPS behavior matches the approved first delivery |
+| 7 | Scope and identity inventory | Effective scope discovery plus domain/project collectors | CPS reconciles administrative identity inventory |
+| 8 | Identity lifecycle and quotas | Domain/project, assignment, and quota handlers | Disposable identity lifecycle passes through CPS |
+| 9 | Network resource control | Network topology, security, router, port, and floating-IP handlers | Disposable topology is lifecycle-managed and cleaned |
+| 10 | Storage and provider catalog | Volume/snapshot, image, AZ, and flavor handlers | Storage/catalog operations converge and replay safely |
+| 11 | Expanded control-plane release | Cross-resource replay, compatibility, and real-cloud acceptance | Recovery and provider compatibility matrix passes |
+
+Sprints 7–11 remain proposed until the CPS design delta is approved and joint
+Sprint Planning confirms contract readiness and capacity.
 
 ## Scrum artifacts
 
