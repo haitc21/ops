@@ -34,6 +34,17 @@ from ops.openstack.waiter import (
 logger = logging.getLogger(__name__)
 
 
+def _ssh_hosts(server: Any) -> list[str]:
+    addresses = getattr(server, "addresses", {}) or {}
+    hosts: list[str] = []
+    for entries in addresses.values():
+        for entry in entries or []:
+            address = entry.get("addr") if isinstance(entry, dict) else None
+            if address and address not in hosts:
+                hosts.append(str(address))
+    return hosts
+
+
 def _event(
     command: MessageEnvelope, message_type: str, payload: dict[str, Any], label: str
 ) -> bytes:
@@ -63,7 +74,12 @@ def _failure(command: MessageEnvelope, error: CommonError) -> bytes:
     )
 
 
-def _create_kwargs(payload: InstanceCommandPayload, operation_id: uuid.UUID) -> dict[str, Any]:
+def _create_kwargs(
+    payload: InstanceCommandPayload,
+    operation_id: uuid.UUID,
+    *,
+    key_name: str | None = None,
+) -> dict[str, Any]:
     if payload.create is None:
         raise ValueError("create payload is required")
     request = payload.create
@@ -74,10 +90,15 @@ def _create_kwargs(payload: InstanceCommandPayload, operation_id: uuid.UUID) -> 
         "flavor_id": request.flavor_provider_resource_id,
         "networks": networks,
         "security_groups": request.security_group_provider_resource_ids,
-        "key_name": request.key_name,
+        "key_name": key_name or request.key_name,
         "availability_zone": request.availability_zone,
         "config_drive": request.config_drive,
-        "metadata": {**request.metadata, "cmp_operation_id": str(operation_id)},
+        "metadata": {
+            **request.metadata,
+            "cmp_operation_id": str(operation_id),
+            "cmp_ssh_username": request.ssh_username,
+            **({"cmp_keypair_name": key_name} if key_name else {}),
+        },
     }
     if request.user_data is not None:
         kwargs["user_data"] = base64.b64encode(request.user_data.encode()).decode()
@@ -112,13 +133,27 @@ async def instance_create(
         )
         with openstack_connection(resolution, settings) as connection:
             compute = connection.compute
+            request = payload.create
+            managed_key_name: str | None = None
+            if request.ssh_public_key and not request.key_name:
+                managed_key_name = f"cmp-{command.operation_id}"
+                keypair = await asyncio.to_thread(
+                    compute.find_keypair, managed_key_name, ignore_missing=True
+                )
+                if keypair is None:
+                    await asyncio.to_thread(
+                        compute.create_keypair,
+                        name=managed_key_name,
+                        public_key=request.ssh_public_key,
+                    )
             existing = await asyncio.to_thread(
                 compute.find_server, f"cmp-operation-{command.operation_id}", ignore_missing=True
             )
             if existing is None:
                 try:
                     existing = await asyncio.to_thread(
-                        compute.create_server, **_create_kwargs(payload, command.operation_id)
+                        compute.create_server,
+                        **_create_kwargs(payload, command.operation_id, key_name=managed_key_name),
                     )
                 except os_exc.EndpointNotFound:
                     # Nova may commit the server before the SDK loses the response;
@@ -156,11 +191,47 @@ async def instance_create(
                 )
             except os_exc.SDKException:
                 ports, volumes = [], []
+            floating_ip: str | None = None
+            floating_ip_id: str | None = None
+            if request.floating_network_provider_resource_id:
+                marker = f"cmp-operation-{command.operation_id}"
+                floating = next(
+                    (
+                        item
+                        for item in await asyncio.to_thread(lambda: list(connection.network.ips()))
+                        if getattr(item, "description", None) == marker
+                    ),
+                    None,
+                )
+                if floating is None:
+                    floating = await asyncio.to_thread(
+                        connection.network.create_ip,
+                        floating_network_id=request.floating_network_provider_resource_id,
+                        description=marker,
+                    )
+                if not getattr(floating, "port_id", None):
+                    await asyncio.to_thread(
+                        compute.add_floating_ip_to_server,
+                        instance,
+                        floating.floating_ip_address,
+                    )
+                floating_ip = str(floating.floating_ip_address)
+                floating_ip_id = str(floating.id)
             result = {
                 "action": InstanceAction.CREATE.value,
                 "instance": map_resource("instance", instance),
                 "ports": ports,
                 "volumes": volumes,
+                "access": {
+                    "ssh": {
+                        "username": request.ssh_username,
+                        "port": 22,
+                        "key_name": managed_key_name or request.key_name,
+                        "host": floating_ip or (_ssh_hosts(instance) or [None])[0],
+                        "hosts": ([floating_ip] if floating_ip else []) + _ssh_hosts(instance),
+                        "floating_ip_id": floating_ip_id,
+                    }
+                },
             }
             completed = _event(
                 command, OPERATION_COMPLETED, {"result": result}, "instance.completed"

@@ -6,11 +6,14 @@
     "fixtures/events/operation_completed.json": "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295",
     "fixtures/events/operation_failed.json": "419f9d68b886963d8e52e662ed5648ef3ac541fd0a321ac0b0a1314d289ac923",
     "fixtures/events/operation_progress.json": "9da2af29181b0fcdd2578bdf15f408c4226d82675d452fbba9bb36daa74899e1",
+    "fixtures/resource_operations/request.json": "6326b9c70f3de8b3a70e8d29662167f35ca1a44372766da602164817939255ba",
+    "fixtures/resource_operations/result.json": "c37130895d8eafec7cc58d00daea4303a0d76d2c747859c6d8be296797613c17",
     "fixtures/transport/retry_delivery.json": "f68a60bb709691a17dfd9f7f0daca679f3e676e482307b370e6dc278577a6dfd",
     "jsonschema/capability_document.schema.json": "061c00c87b7b4d774646500936d1e3f727c2010250254bcf6719db3c672dd05c",
     "jsonschema/common_error.schema.json": "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e",
     "jsonschema/credential_resolution.schema.json": "36a3b1a7c270f1e3c953b4953977ca011f16d178badf28b58bb11f95a5c60732",
     "jsonschema/delivery_metadata.schema.json": "a462b1dd6d10a72986d80f70ba6e2b6c98dde3b911eaa792bbfa8b612b2e63bf",
-    "jsonschema/message_envelope.schema.json": "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655"
+    "jsonschema/message_envelope.schema.json": "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655",
+    "jsonschema/resource_operation.schema.json": "cb1d6ad73a43bfed344baf6e2abc311131894d6d8b1b6fd1b71b870f9f7eadc8"
   }
 }

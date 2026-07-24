@@ -28,7 +28,7 @@ ERROR_FIXTURE = ROOT / "fixtures" / "errors" / "provider_authentication_failed.j
 def test_semantics_passes_on_pinned_tree() -> None:
     fixture_count, error = validate_contract_semantics(ROOT)
     assert error is None
-    assert fixture_count == 7
+    assert fixture_count == 9
 
 
 def test_malformed_fixture_json_fails_without_leaking_content(tmp_path: Path) -> None:

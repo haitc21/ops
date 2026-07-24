@@ -13,6 +13,19 @@ from ops.contracts.validation import CredentialResolution
 MAX_RESOLUTION_BYTES = 16 * 1024
 
 
+def _error_code(response: httpx.Response) -> str:
+    """Retain a safe CPS error code without exposing the response body."""
+    try:
+        payload = response.json()
+        error = payload.get("error") if isinstance(payload, dict) else None
+        code = error.get("code") if isinstance(error, dict) else None
+    except (ValueError, TypeError):
+        code = None
+    if isinstance(code, str) and code and len(code) <= 128:
+        return code
+    return "CPS_UNAVAILABLE"
+
+
 class CpsResolutionError(RuntimeError):
     """A normalized CPS resolution failure."""
 
@@ -48,7 +61,7 @@ class CredentialResolver:
         if len(response.content) > MAX_RESOLUTION_BYTES:
             raise CpsResolutionError("CPS_UNAVAILABLE", retryable=True)
         if response.status_code >= 500:
-            raise CpsResolutionError("CPS_UNAVAILABLE", retryable=True)
+            raise CpsResolutionError(_error_code(response), retryable=True)
         if response.status_code in {404, 409}:
             raise CpsResolutionError("CREDENTIAL_REFERENCE_INVALID", retryable=False)
         if response.status_code != 200:

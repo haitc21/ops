@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cmp.vnpost.vn/cps/contracts/resource-operation.schema.json",
+  "title": "Scoped resource operation",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "scopeKind": { "type": "string", "enum": ["SYSTEM", "DOMAIN", "PROJECT"] },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation_id", "resource_type", "operation", "required_scope", "provider_connection_id", "parameters"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "1.0" },
+        "operation_id": { "type": "string", "format": "uuid" },
+        "resource_type": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "operation": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "required_scope": { "$ref": "#/$defs/scopeKind" },
+        "provider_connection_id": { "type": "string", "format": "uuid" },
+        "provider_resource_id": { "type": ["string", "null"], "maxLength": 255 },
+        "parameters": { "type": "object" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation_id", "resource_type", "operation", "state", "required_scope", "provider_connection_id"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "1.0" },
+        "operation_id": { "type": "string", "format": "uuid" },
+        "resource_type": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "operation": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "state": { "type": "string", "enum": ["SUCCEEDED", "ALREADY_ABSENT", "UNSUPPORTED", "FAILED"] },
+        "required_scope": { "$ref": "#/$defs/scopeKind" },
+        "provider_connection_id": { "type": "string", "format": "uuid" },
+        "provider_resource_id": { "type": ["string", "null"], "maxLength": 255 },
+        "resource": { "type": ["object", "null"] },
+        "error": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

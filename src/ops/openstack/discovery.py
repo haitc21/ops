@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ops.contracts.validation import CapabilityDocument
+from ops.openstack.scope import discover_effective_scope
 
 _SERVICE_NAMES = ("identity", "compute", "network", "image", "block_storage")
 _SERVICE_TYPES = {
@@ -151,6 +152,17 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
         volume_from_image,
         reason=None if volume_from_image else "SERVICE_NOT_AVAILABLE",
     )
+    scope = discover_effective_scope(conn)
+    for name, capability in scope["capabilities"].items():
+        features[name] = _feature(bool(capability["supported"]), reason=capability.get("reason"))
+    features["identity.scope.discover"] = _feature(True)
     return CapabilityDocument.model_validate(
-        {"schema_version": "1.0", "services": available, "features": features}
+        {
+            "schema_version": "1.0",
+            "services": available,
+            "features": features,
+            # CapabilityDocument permits additive fields; this is deliberately
+            # primitive-only and contains no token or service catalog data.
+            "scope": scope,
+        }
     )

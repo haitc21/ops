@@ -338,6 +338,40 @@ async def test_exhausted_retry_rejects_to_dlq_once() -> None:
 
 
 @pytest.mark.asyncio
+async def test_exhausted_valid_command_publishes_terminal_failure_before_ack() -> None:
+    publisher = FakePublisher()
+
+    async def handler(*_args: Any) -> HandlerRetryableError:
+        return HandlerRetryableError(
+            error=CommonError(
+                code="CPS_UNAVAILABLE",
+                message="CPS credential resolver unavailable",
+                category=ErrorCategory.NETWORK,
+                retryable=True,
+            )
+        )
+
+    consumer = _consumer(handler, publisher=publisher)
+    message = FakeIncomingMessage(
+        body=json.dumps(_minimal_command_envelope()).encode(),
+        headers=fresh_delivery_headers(attempt=3, max_attempts=3),
+        routing_key="openstack.retry",
+    )
+    record = DeliveryProcessingRecord()
+    _, completed = await consumer.process_delivery(message, record)
+
+    assert completed is True
+    assert message.acked is True
+    assert message.rejected is False
+    assert record.result_published is True
+    assert publisher.publishes[0]["routing_key"] == OPERATION_FAILED
+    event = json.loads(publisher.publishes[0]["body"])
+    assert event["message_type"] == OPERATION_FAILED
+    assert event["operation_id"] == _minimal_command_envelope()["operation_id"]
+    assert event["payload"]["error"]["code"] == "CPS_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
 async def test_poison_headers_reject_without_handler() -> None:
     called = False
 

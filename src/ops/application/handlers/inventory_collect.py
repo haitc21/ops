@@ -129,6 +129,8 @@ async def inventory_collect(
                     collection_status = "COMPLETE"
                 except (
                     AttributeError,
+                    os_exc.ForbiddenException,
+                    ks_exc.AuthorizationFailure,
                     os_exc.EndpointNotFound,
                     ks_exc.catalog.EndpointNotFound,
                     os_exc.ServiceDisabledException,
@@ -191,7 +193,7 @@ async def inventory_refresh(
                 item = await asyncio.to_thread(
                     collect_targeted_resource, connection, resource_type, provider_resource_id
                 )
-            except os_exc.ResourceNotFound:
+            except (os_exc.ResourceNotFound, os_exc.NotFoundException):
                 item = {
                     "provider_resource_id": provider_resource_id,
                     "name": provider_resource_id,

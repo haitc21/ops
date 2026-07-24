@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class InventoryResourceType(StrEnum):
     REGION = "region"
+    DOMAIN = "domain"
     PROJECT = "project"
     FLAVOR = "flavor"
     IMAGE = "image"

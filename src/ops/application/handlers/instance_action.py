@@ -25,6 +25,26 @@ from ops.openstack.inventory import map_resource
 from ops.openstack.waiter import WaiterConfig, wait_for_deleted, wait_for_state
 
 
+def _ssh_access(server: Any) -> dict[str, Any]:
+    metadata = getattr(server, "metadata", {}) or {}
+    addresses = getattr(server, "addresses", {}) or {}
+    hosts: list[str] = []
+    for entries in addresses.values():
+        for entry in entries or []:
+            address = entry.get("addr") if isinstance(entry, dict) else None
+            if address and address not in hosts:
+                hosts.append(str(address))
+    return {
+        "ssh": {
+            "username": metadata.get("cmp_ssh_username", "ubuntu"),
+            "port": 22,
+            "key_name": metadata.get("cmp_keypair_name"),
+            "host": hosts[0] if hosts else None,
+            "hosts": hosts,
+        }
+    }
+
+
 def _event(
     command: MessageEnvelope,
     payload: dict[str, Any],
@@ -128,7 +148,30 @@ async def instance_action(
                     compute.reboot_server, server, reboot_type=payload.reboot_type or "SOFT"
                 )
             elif expected_action is InstanceAction.DELETE:
+                metadata = getattr(server, "metadata", {}) or {}
+                managed_keypair = metadata.get("cmp_keypair_name")
+                managed_floating_ips: list[Any] = []
+                network = getattr(connection, "network", None)
+                has_network = network is not None and (
+                    not hasattr(connection, "has_service") or connection.has_service("network")
+                )
+                if has_network:
+                    operation_marker = f"cmp-operation-{metadata.get('cmp_operation_id', '')}"
+                    for floating in await asyncio.to_thread(lambda: list(network.ips())):
+                        if getattr(floating, "description", None) == operation_marker:
+                            managed_floating_ips.append(floating)
+                            await asyncio.to_thread(
+                                compute.remove_floating_ip_from_server,
+                                server,
+                                floating.floating_ip_address,
+                            )
                 await asyncio.to_thread(compute.delete_server, server)
+                for floating in managed_floating_ips:
+                    await asyncio.to_thread(network.delete_ip, floating.id)
+                if managed_keypair:
+                    await asyncio.to_thread(
+                        compute.delete_keypair, managed_keypair, ignore_missing=True
+                    )
             if expected_action is InstanceAction.GET:
                 result_instance = map_resource("instance", server)
             elif expected_action is InstanceAction.DELETE:
@@ -155,6 +198,7 @@ async def instance_action(
                 "instance": result_instance,
                 "ports": [],
                 "volumes": [],
+                "access": _ssh_access(server) if expected_action is InstanceAction.GET else {},
             }
             progress = _event(
                 command,

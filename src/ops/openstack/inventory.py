@@ -11,6 +11,7 @@ from openstack import exceptions as os_exc
 
 COLLECTIONS = (
     "region",
+    "domain",
     "project",
     "flavor",
     "image",
@@ -93,6 +94,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),
+        "domain": ("description", "is_enabled"),
         "project": ("domain_id", "domain_name", "description", "is_enabled"),
         "flavor": ("vcpus", "ram", "disk", "ephemeral", "swap", "is_public"),
         "image": ("visibility", "size", "min_disk", "min_ram", "disk_format", "checksum"),
@@ -154,6 +156,7 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
     """Collect one resource type through supported SDK proxy generators."""
     proxy_name = {
         "region": ("identity", "regions"),
+        "domain": ("identity", "domains"),
         "project": ("identity", "projects"),
         "flavor": ("compute", "flavors"),
         "image": ("image", "images"),
@@ -166,7 +169,11 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
     service, method_name = proxy_name[resource_type]
     proxy = getattr(connection, service)
     resources: Iterable[Any] = getattr(proxy, method_name)()
-    return [map_resource(resource_type, resource) for resource in resources]
+    mapped = [map_resource(resource_type, resource) for resource in resources]
+    # Provider pagination/order is not a contract. Stable ordering keeps
+    # redelivery checksums equivalent even when Keystone returns a different
+    # page order.
+    return sorted(mapped, key=lambda item: item["provider_resource_id"])
 
 
 def collect_targeted_resource(
@@ -174,6 +181,7 @@ def collect_targeted_resource(
 ) -> dict[str, Any]:
     getter = {
         "region": ("identity", "get_region"),
+        "domain": ("identity", "get_domain"),
         "project": ("identity", "get_project"),
         "flavor": ("compute", "get_flavor"),
         "image": ("image", "get_image"),

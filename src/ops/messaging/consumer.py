@@ -7,8 +7,10 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal, Protocol, cast
 
 from aio_pika.abc import AbstractChannel, AbstractExchange, AbstractIncomingMessage, AbstractQueue
@@ -16,6 +18,8 @@ from pydantic import ValidationError
 
 from ops.contracts.errors import CommonError, ErrorCategory
 from ops.contracts.messages.delivery import DeliveryMetadata
+from ops.contracts.messages.envelope import MessageEnvelope
+from ops.contracts.messages.types import OPERATION_FAILED
 from ops.messaging.constants import DEFAULT_PREFETCH_COUNT, DEFAULT_SHUTDOWN_GRACE_SECONDS
 from ops.messaging.lifecycle import WorkerLifecycle
 from ops.messaging.publisher import ConfirmedPublisher, PublishConfirmError
@@ -78,6 +82,30 @@ HandlerOutcome = (
     | HandlerNonRetryableError
     | HandlerUnexpectedError
 )
+
+
+def _build_retry_exhausted_failure(body: bytes, error: CommonError) -> bytes | None:
+    """Build a durable terminal event before acknowledging an exhausted command."""
+    try:
+        command = MessageEnvelope.model_validate(json.loads(body))
+        event = MessageEnvelope(
+            message_id=uuid.uuid5(command.operation_id, "operation.failed.retry_exhausted"),
+            message_type=OPERATION_FAILED,
+            schema_version=command.schema_version,
+            occurred_at=datetime.now(UTC),
+            correlation_id=command.correlation_id,
+            causation_id=command.message_id,
+            operation_id=command.operation_id,
+            idempotency_key=command.idempotency_key,
+            provider_id=command.provider_id,
+            provider_connection_id=command.provider_connection_id,
+            credential_reference=command.credential_reference,
+            trace_context=dict(command.trace_context),
+            payload={"error": error.model_dump(mode="json")},
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return json.dumps(event.model_dump(mode="json"), separators=(",", ":")).encode()
 
 
 @dataclass
@@ -302,6 +330,24 @@ class CommandConsumer:
             max_attempts=metadata.max_attempts,
         )
         if not decision.retryable or decision.exhausted:
+            terminal_body = _build_retry_exhausted_failure(body, error)
+            if terminal_body is not None:
+                try:
+                    await self.publisher.publish(
+                        self.event_exchange,
+                        OPERATION_FAILED,
+                        terminal_body,
+                    )
+                except PublishConfirmError:
+                    if self.channel is not None:
+                        await self.channel.close()
+                        actions.channel_closed = True
+                    return False
+                actions.result_published = True
+                await message.ack()
+                actions.acked = True
+                metrics.increment("ops_commands_failed_total")
+                return True
             await message.reject(requeue=False)
             metrics.increment("ops_commands_dlq_total")
             actions.rejected = True

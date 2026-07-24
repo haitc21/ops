@@ -34,6 +34,9 @@ class InstanceCreateRequest(BaseModel):
     port_provider_resource_ids: list[str] = Field(default_factory=list, max_length=32)
     security_group_provider_resource_ids: list[str] = Field(default_factory=list, max_length=64)
     key_name: str | None = Field(default=None, max_length=255)
+    ssh_public_key: str | None = Field(default=None, min_length=32, max_length=16384)
+    ssh_username: str = Field(default="ubuntu", min_length=1, max_length=64)
+    floating_network_provider_resource_id: str | None = Field(default=None, max_length=255)
     availability_zone: str | None = Field(default=None, max_length=255)
     user_data: str | None = Field(default=None, max_length=65536)
     config_drive: bool = False
@@ -47,6 +50,8 @@ class InstanceCreateRequest(BaseModel):
             raise ValueError("at least one explicit network or port is required")
         if self.boot_source is InstanceBootSource.IMAGE and self.root_volume_size_gib is not None:
             raise ValueError("root volume size is only valid for VOLUME_FROM_IMAGE")
+        if self.key_name and self.ssh_public_key:
+            raise ValueError("key_name and ssh_public_key are mutually exclusive")
         return self
 
 
@@ -76,6 +81,7 @@ class InstanceOperationResult(BaseModel):
     instance: dict[str, Any]
     ports: list[dict[str, Any]] = Field(default_factory=list)
     volumes: list[dict[str, Any]] = Field(default_factory=list)
+    access: dict[str, Any] = Field(default_factory=dict)
     provider_request_id: str | None = None
 
 

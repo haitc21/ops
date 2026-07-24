@@ -69,6 +69,43 @@ def test_collector_uses_proxy_generator_and_maps_sdk_objects() -> None:
     ]
 
 
+def test_domain_and_project_collectors_use_identity_generators() -> None:
+    connection = SimpleNamespace(
+        identity=SimpleNamespace(
+            domains=lambda: [SimpleNamespace(id="domain-1", name="tenant-domain", is_enabled=True)],
+            projects=lambda: [
+                SimpleNamespace(id="project-1", name="workspace", domain_id="domain-1")
+            ],
+        )
+    )
+    assert collect_resources(connection, "domain")[0]["attributes"] == {"is_enabled": True}
+    assert collect_resources(connection, "project")[0]["attributes"] == {"domain_id": "domain-1"}
+
+
+def test_domain_targeted_not_found_uses_identity_getter() -> None:
+    connection = SimpleNamespace(
+        identity=SimpleNamespace(
+            get_domain=lambda resource_id: SimpleNamespace(id=resource_id, name="domain")
+        )
+    )
+    assert collect_targeted_resource(connection, "domain", "domain-1")["provider_resource_id"] == (
+        "domain-1"
+    )
+
+
+def test_collection_order_is_stable_for_redelivery_checksums() -> None:
+    connection = SimpleNamespace(
+        identity=SimpleNamespace(
+            projects=lambda: [
+                SimpleNamespace(id="project-2", name="two"),
+                SimpleNamespace(id="project-1", name="one"),
+            ]
+        )
+    )
+    items = collect_resources(connection, "project")
+    assert [item["provider_resource_id"] for item in items] == ["project-1", "project-2"]
+
+
 def test_batch_builder_chunks_deterministically_without_secrets() -> None:
     command = MessageEnvelope.model_validate(
         {
