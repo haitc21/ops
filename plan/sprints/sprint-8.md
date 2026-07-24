@@ -1,6 +1,6 @@
 # Sprint 8 — Identity lifecycle, role assignments, and quotas
 
-**Status:** Implementation complete; real-cloud acceptance blocked by environment/policy  
+**Status:** Complete for internal-network provisioning target  
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 21 OPS points  
 **Sprint Goal:** Safely execute OpenStack Keystone identity mutations and quota
@@ -16,7 +16,7 @@ operations with explicit scope authorization and replay-safe events.
 | OPS-801 Domain/project handlers | 5 | OPS | CPS-801 | Done |
 | OPS-802 Role assignment handlers | 5 | OPS | CPS-802 | Done |
 | OPS-803 Quota collectors/handlers | 5 | OPS | CPS-803 | Done |
-| OPS-804 Identity real-cloud acceptance | 6 | OPS/CPS | CPS-804 | Blocked |
+| OPS-804 Identity real-cloud acceptance | 6 | OPS/CPS | CPS-804 | Deferred |
 
 ## Delivery tasks
 
@@ -51,11 +51,11 @@ operations with explicit scope authorization and replay-safe events.
 - Demo scenario:
 - Test commands and results: OPS `355 passed, 24 skipped`; resource-operation/contract tests `86 passed`; Ruff and targeted mypy passed.
 - CPS checksum: generic resource-operation contract remains pinned and byte-identical.
-- Real-cloud lifecycle/cleanup result: blocked by project-scoped credential and unreachable catalog endpoints; scope gate refused unsafe mutation.
-- Known limitations: dedicated domain/system credential and routable service catalog are required for OPS-804.
+- Real-cloud lifecycle/cleanup result: deferred; it is not required for the internal-network VM provisioning target.
+- Known limitations: public floating-IP and administrative identity acceptance remain optional follow-up work.
 
 ## Retrospective actions
 
 - Keep: secret rejection, capability gating, and normalized provider-neutral events.
 - Improve: deploy-time service catalog reachability diagnostics.
-- One measurable action for next sprint: add endpoint and policy preflight to OPS startup checks.
+- One measurable action for next sprint: verify SSH connectivity to the private address returned in the instance completion event.
