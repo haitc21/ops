@@ -13,6 +13,7 @@ from ops.application.handlers.inventory_collect import (
     make_inventory_refresh,
 )
 from ops.application.handlers.registry import HandlerRegistry
+from ops.application.handlers.resource_operations import make_resource_operation
 from ops.application.handlers.stub_connection_validate import make_stub_connection_validate
 from ops.application.validation import EnvelopeReject, validate_command_envelope
 from ops.config import Settings
@@ -20,6 +21,15 @@ from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.instance import InstanceAction
 from ops.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    IDENTITY_DOMAIN_CREATE,
+    IDENTITY_DOMAIN_DELETE,
+    IDENTITY_DOMAIN_UPDATE,
+    IDENTITY_PROJECT_CREATE,
+    IDENTITY_PROJECT_DELETE,
+    IDENTITY_PROJECT_UPDATE,
+    IDENTITY_ROLE_COLLECT,
+    IDENTITY_ROLE_ENSURE,
+    IDENTITY_ROLE_REVOKE,
     INSTANCE_CREATE,
     INSTANCE_DELETE,
     INSTANCE_GET,
@@ -28,6 +38,8 @@ from ops.contracts.messages.types import (
     INSTANCE_STOP,
     INVENTORY_COLLECT,
     INVENTORY_REFRESH,
+    QUOTA_COLLECT,
+    QUOTA_UPDATE,
 )
 from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerOutcome
 
@@ -60,6 +72,21 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
     registry.register(INSTANCE_STOP, make_instance_action(settings, InstanceAction.STOP))
     registry.register(INSTANCE_REBOOT, make_instance_action(settings, InstanceAction.REBOOT))
     registry.register(INSTANCE_DELETE, make_instance_action(settings, InstanceAction.DELETE))
+    identity_handler = make_resource_operation(settings)
+    for message_type in (
+        IDENTITY_DOMAIN_CREATE,
+        IDENTITY_DOMAIN_UPDATE,
+        IDENTITY_DOMAIN_DELETE,
+        IDENTITY_PROJECT_CREATE,
+        IDENTITY_PROJECT_UPDATE,
+        IDENTITY_PROJECT_DELETE,
+        IDENTITY_ROLE_ENSURE,
+        IDENTITY_ROLE_REVOKE,
+        IDENTITY_ROLE_COLLECT,
+        QUOTA_COLLECT,
+        QUOTA_UPDATE,
+    ):
+        registry.register(message_type, identity_handler)
     registry.freeze()
     return registry
 
