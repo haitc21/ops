@@ -6,7 +6,7 @@
 
 ## Product goal
 
-Deliver OPS as a stateless, replay-safe OpenStack adapter that validates connections, discovers capabilities, collects normalized inventory, executes VM lifecycle operations, and publishes safe results to CPS without leaking OpenStackSDK objects or credentials.
+Deliver OPS as a stateless, replay-safe OpenStack adapter that validates providers, discovers capabilities, collects normalized inventory, executes VM lifecycle operations, and publishes safe results to CPS without leaking OpenStackSDK objects or credentials.
 
 ## Working agreement
 
@@ -39,7 +39,7 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates connect
 |---|---|---|---|
 | 0 | Reproducible stateless service | Python 3.12 project, health, RabbitMQ/OpenStack config, CI | Both repos build/test with pinned locks |
 | 1 | Stable contract and messaging runtime | Pinned schemas, robust consumer/publisher, common errors/retries | Golden fixtures and topology interoperate |
-| 2 | Provider connectivity | Credential resolution, SDK connection, discovery, validation | Connection validation operation completes end-to-end |
+| 2 | Provider connectivity | Provider onboarding validation, SDK connection, discovery | Provider validation operation completes end-to-end |
 | 3 | Normalized inventory | Collectors, mappers, batching, targeted refresh | CPS safely reconciles all scoped resources |
 | 4 | VM lifecycle | Create/detail/start/stop/reboot/delete and waiters | CPS operations and inventory converge |
 | 5 | Recovery and release readiness | Replay safety, resilience, metrics, real-cloud acceptance | Restart/redelivery/drift suite passes |
@@ -47,10 +47,11 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates connect
 | 7 | Scope and identity inventory | Effective scope discovery plus domain/project collectors | CPS reconciles administrative identity inventory |
 | 8 | Identity lifecycle and quotas | Domain/project, assignment, and quota handlers | Disposable identity lifecycle passes through CPS |
 | 9 | Network resource control | Network topology, security, router, port, and floating-IP handlers | Disposable topology is lifecycle-managed and cleaned |
-| 10 | Storage and provider catalog | Volume/snapshot, image, AZ, and flavor handlers | Storage/catalog operations converge and replay safely |
-| 11 | Expanded control-plane release | Cross-resource replay, compatibility, and real-cloud acceptance | Recovery and provider compatibility matrix passes |
+| 10 | OpenStack tenant binding and ownership APIs | Explicit domain/project create handlers with CMP-owned bindings | CMP can request domain/project creation without inventory inference |
+| 11 | Storage and provider catalog | Volume/snapshot, image, AZ, and flavor handlers | Storage/catalog operations converge and replay safely |
+| 12 | Expanded control-plane release | Cross-resource replay, compatibility, and real-cloud acceptance | Recovery and provider compatibility matrix passes |
 
-Sprints 7–11 remain proposed until the CPS design delta is approved and joint
+Sprints 7–12 remain proposed until the CPS design delta is approved and joint
 Sprint Planning confirms contract readiness and capacity.
 
 ## Scrum artifacts

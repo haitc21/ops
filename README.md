@@ -25,10 +25,10 @@ uv run ops serve --host 127.0.0.1 --port 8001
 uv run ops worker --once
 ```
 
-`OPS_CPS_BASE_URL` must point to the CPS internal credential resolver listener
-(`:8002` in the development environment), not the public CPS listener on
-`:8000`. The development settings use this internal URL by default; set the
-variable explicitly in deployment environments.
+`OPS_CPS_BASE_URL` must point to the CPS internal listener (`:8002` in the
+development environment), not the public CPS listener on `:8000`. The
+development settings use this internal URL by default; set the variable
+explicitly in deployment environments.
 
 ### Docker
 

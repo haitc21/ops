@@ -1,5 +1,10 @@
 # OPS Product Backlog
 
+Current public model note: OPS consumes one `provider` aggregate from CPS.
+`credential` and `provider connection` are internal implementation details
+from earlier iterations and are not separate public business objects in new
+work.
+
 ## Epic OPS-E0 — Engineering foundation
 
 ### OPS-001 — Bootstrap a reproducible Python service
@@ -56,6 +61,11 @@
 
 ## Epic OPS-E2 — Connection and capability vertical slice
 
+Legacy implementation note: this epic reflects the earlier OPS split around
+credential resolution and provider connection scope. The current public model
+uses a single provider aggregate; treat these stories as historical/internal
+unless a future migration explicitly reopens them.
+
 ### OPS-201 — CPS credential resolver client
 
 - **Sprint/Priority/Points:** 2 / Must / 5
@@ -80,6 +90,19 @@
 - **Depends on:** OPS-102..103, OPS-203
 - **Coordinates with:** CPS-205
 - **Acceptance:** real OpenStack validation publishes progress and terminal result; credentials absent from message/event/log; replay repeats safe reads only; auth and service failures normalize correctly.
+
+### OPS-205 — Single-endpoint provider onboarding support
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** OPS-201..204
+- **Coordinates with:** CPS-207
+- **Acceptance:** OPS treats provider onboarding as one privileged provider
+  request from CPS; no user-selected scope is required; the handler validates
+  and discovers capabilities from the supplied highest-privilege account; the
+  provider aggregate already carries the encrypted secret and internal
+  connection metadata, so no separate credential/connection object is needed;
+  public/provider-side objects do not escape the handler boundary; replay-safe
+  validation and discovery still work.
 
 ## Epic OPS-E3 — Inventory
 
@@ -218,6 +241,18 @@
 - **Acceptance:** paginated collectors emit safe typed identities; forbidden
   domain collection is explicit; project collection remains project-scope
   compatible; targeted NotFound alone emits tombstone.
+
+### OPS-704 — OpenStack domain/project create handlers
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** OPS-702, OPS-703
+- **Coordinates with:** CPS-704
+- **Acceptance:** OPS creates OpenStack domains and projects only from an
+  explicit CPS create command; `org_id` is required for domain create and
+  `org_id + workspace_id` are required for project create; name-only matches
+  never auto-adopt an unbound provider object; duplicate delivery is
+  idempotent; scope insufficiency and provider collisions normalize to stable
+  safe errors.
 
 ## Epic OPS-E8 — Identity lifecycle and quotas
 
