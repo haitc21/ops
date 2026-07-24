@@ -152,6 +152,24 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
         volume_from_image,
         reason=None if volume_from_image else "SERVICE_NOT_AVAILABLE",
     )
+    network = getattr(conn, "network", None)
+    network_features = {
+        "network.create": "create_network",
+        "network.subnet.create": "create_subnet",
+        "network.router.create": "create_router",
+        "network.port.create": "create_port",
+        "network.security_group.create": "create_security_group",
+        "network.security_group_rule.create": "create_security_group_rule",
+        "network.floating_ip.allocate": "create_ip",
+        "network.router.interface": "add_interface_to_router",
+    }
+    for feature, method_name in network_features.items():
+        supported = bool(available["network"]["available"]) and callable(
+            getattr(network, method_name, None)
+        )
+        features[feature] = _feature(
+            supported, reason=None if supported else "CAPABILITY_NOT_SUPPORTED"
+        )
     scope = discover_effective_scope(conn)
     for name, capability in scope["capabilities"].items():
         features[name] = _feature(bool(capability["supported"]), reason=capability.get("reason"))

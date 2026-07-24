@@ -163,11 +163,28 @@ async def resource_operation(
 def _execute(
     connection: Any, request: ResourceOperationRequest
 ) -> tuple[Any | None, ResourceOperationState]:
-    identity = connection.identity
     operation = request.operation.lower()
-    resource_type = request.resource_type.lower().replace("identity.", "")
+    resource_type = request.resource_type.lower().replace("identity.", "").replace("network.", "")
     params = dict(request.parameters)
     provider_id = request.provider_resource_id
+    if resource_type in {
+        "network",
+        "subnet",
+        "router",
+        "port",
+        "security_group",
+        "security_group_rule",
+        "floating_ip",
+        "floatingip",
+        "security",
+        "security_rule",
+        "router_interface",
+        "security.group",
+        "security.group.rule",
+        "router.interface",
+    }:
+        return _execute_network(connection, resource_type, operation, provider_id, params)
+    identity = connection.identity
     if resource_type in {"domain", "project"}:
         getter = getattr(identity, f"get_{resource_type}")
         creator = getattr(identity, f"create_{resource_type}")
@@ -281,6 +298,214 @@ def _execute(
             "attributes": _normalize_quota(quota),
         }, ResourceOperationState.SUCCEEDED
     raise ValueError(f"unsupported resource operation: {request.resource_type}/{request.operation}")
+
+
+def _network_proxy(connection: Any) -> Any:
+    proxy = getattr(connection, "network", None)
+    if proxy is None:
+        raise ValueError("network service is unavailable")
+    return proxy
+
+
+def _network_type(resource_type: str) -> str:
+    return {
+        "floatingip": "floating_ip",
+        "security": "security_group",
+        "security_rule": "security_group_rule",
+        "security.group": "security_group",
+        "security.group.rule": "security_group_rule",
+        "router.interface": "router_interface",
+    }.get(resource_type, resource_type)
+
+
+def _network_owner_check(
+    connection: Any, params: dict[str, Any], resource: Any | None = None
+) -> None:
+    """Prevent a project-scoped credential from mutating another tenant's resource."""
+    effective = discover_effective_scope(connection)
+    project_id = effective.get("project_id")
+    requested = params.get("project_id") or params.get("tenant_id")
+    if project_id and requested and str(project_id) != str(requested):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if project_id and resource is not None:
+        owner = getattr(resource, "project_id", None) or getattr(resource, "tenant_id", None)
+        if owner and str(owner) != str(project_id):
+            raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+
+
+def _find_network_existing(proxy: Any, kind: str, params: dict[str, Any]) -> Any | None:
+    name = params.get("name")
+    if not name:
+        return None
+    method = getattr(proxy, f"{kind}s", None)
+    if not callable(method):
+        return None
+    filters = {"name": name}
+    if params.get("project_id"):
+        filters["project_id"] = params["project_id"]
+    try:
+        return next(iter(method(**filters)), None)
+    except TypeError:
+        return next((item for item in method() if getattr(item, "name", None) == name), None)
+
+
+def _execute_network(
+    connection: Any,
+    resource_type: str,
+    operation: str,
+    provider_id: str | None,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    proxy = _network_proxy(connection)
+    kind = _network_type(resource_type)
+    operation = operation.lower()
+    _validate_network_parameters(kind, operation, params)
+    if kind == "router_interface":
+        router_id = str(params.get("router_id") or provider_id or "")
+        if not router_id:
+            raise ValueError("router_id is required")
+        relation = {k: v for k, v in params.items() if k in {"subnet_id", "port_id"} and v}
+        if not relation:
+            raise ValueError("subnet_id or port_id is required")
+        router = proxy.get_router(router_id)
+        method_name = (
+            "add_interface_to_router"
+            if operation in {"ensure", "create", "add"}
+            else "remove_interface_from_router"
+        )
+        method = getattr(proxy, method_name, None)
+        if not callable(method):
+            raise ValueError("router interface operation unsupported")
+        try:
+            result = method(router, **relation)
+        except (os_exc.ConflictException, os_exc.BadRequestException):
+            if operation in {"ensure", "create", "add"}:
+                return router, ResourceOperationState.SUCCEEDED
+            raise
+        except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+            if operation in {"remove", "delete"}:
+                return None, ResourceOperationState.ALREADY_ABSENT
+            raise
+        return result or router, ResourceOperationState.SUCCEEDED
+
+    if kind == "floating_ip":
+        if operation in {"allocate", "create", "ensure"}:
+            network_id = params.get("floating_network_id") or params.get("network_id")
+            if not network_id:
+                raise ValueError("floating_network_id is required")
+            _network_owner_check(connection, params)
+            existing = next(
+                (
+                    item
+                    for item in proxy.ips()
+                    if getattr(item, "floating_network_id", None) == network_id
+                    and not getattr(item, "port_id", None)
+                ),
+                None,
+            )
+            if existing is not None:
+                return existing, ResourceOperationState.SUCCEEDED
+            return proxy.create_ip(
+                floating_network_id=network_id,
+                **{
+                    k: v
+                    for k, v in params.items()
+                    if k not in {"floating_network_id", "network_id"}
+                },
+            ), ResourceOperationState.SUCCEEDED
+        if not provider_id:
+            raise ValueError("provider_resource_id is required")
+        try:
+            existing = proxy.get_ip(provider_id)
+        except os_exc.NotFoundException:
+            return (
+                (None, ResourceOperationState.ALREADY_ABSENT)
+                if operation in {"release", "delete"}
+                else (_raise("floating IP not found"))
+            )
+        _network_owner_check(connection, params, existing)
+        if operation in {"associate", "disassociate", "update", "patch"}:
+            values = (
+                {"port_id": params.get("port_id")}
+                if operation != "disassociate"
+                else {"port_id": None}
+            )
+            return proxy.update_ip(existing, **values), ResourceOperationState.SUCCEEDED
+        if operation in {"release", "delete"}:
+            proxy.delete_ip(existing, ignore_missing=True)
+            return None, ResourceOperationState.SUCCEEDED
+
+    creator = getattr(proxy, f"create_{kind}", None)
+    getter = getattr(proxy, f"get_{kind}", None)
+    updater = getattr(proxy, f"update_{kind}", None)
+    deleter = getattr(proxy, f"delete_{kind}", None)
+    if operation in {"create", "ensure"}:
+        _network_owner_check(connection, params)
+        existing = _find_network_existing(proxy, kind, params) if operation == "ensure" else None
+        if existing is not None:
+            return existing, ResourceOperationState.SUCCEEDED
+        if not callable(creator):
+            raise ValueError(f"{kind} create unsupported")
+        return creator(**params), ResourceOperationState.SUCCEEDED
+    if not provider_id or not callable(getter):
+        raise ValueError("provider_resource_id is required")
+    try:
+        existing = getter(provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+        if operation in {"delete", "release", "remove"}:
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+    _network_owner_check(connection, params, existing)
+    if operation in {"get", "collect"}:
+        return existing, ResourceOperationState.SUCCEEDED
+    if operation in {"update", "patch"}:
+        if not callable(updater):
+            raise ValueError(f"{kind} update unsupported")
+        return updater(existing, **params), ResourceOperationState.SUCCEEDED
+    if operation in {"delete", "release", "remove"}:
+        if not callable(deleter):
+            raise ValueError(f"{kind} delete unsupported")
+        deleter(existing, ignore_missing=True)
+        return None, ResourceOperationState.SUCCEEDED
+    raise ValueError(f"unsupported network operation: {kind}/{operation}")
+
+
+def _validate_network_parameters(kind: str, operation: str, params: dict[str, Any]) -> None:
+    """Reject malformed Neutron requests before invoking an SDK mutation."""
+    if operation not in {"create", "ensure", "update", "patch"}:
+        return
+    if kind in {"subnet", "port"} and not params.get("network_id"):
+        raise ValueError("network_id is required")
+    if kind == "subnet" and not params.get("cidr"):
+        raise ValueError("cidr is required")
+    if kind == "security_group_rule":
+        if not params.get("security_group_id"):
+            raise ValueError("security_group_id is required")
+        direction = params.get("direction")
+        if direction not in {"ingress", "egress"}:
+            raise ValueError("direction must be ingress or egress")
+        ethertype = params.get("ethertype")
+        if ethertype is not None and ethertype not in {"IPv4", "IPv6"}:
+            raise ValueError("ethertype must be IPv4 or IPv6")
+        minimum = params.get("port_range_min")
+        maximum = params.get("port_range_max")
+        if (minimum is None) != (maximum is None):
+            raise ValueError("port range requires both minimum and maximum")
+        if minimum is not None and (
+            not isinstance(minimum, int)
+            or not isinstance(maximum, int)
+            or minimum < 1
+            or maximum > 65535
+            or minimum > maximum
+        ):
+            raise ValueError("invalid port range")
+        protocol = params.get("protocol")
+        if protocol is not None and not isinstance(protocol, str):
+            raise ValueError("protocol must be a string")
+
+
+def _raise(message: str) -> Any:
+    raise ValueError(message)
 
 
 def _normalize_quota(quota: Any) -> dict[str, Any]:

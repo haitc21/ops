@@ -21,6 +21,11 @@ class InventoryResourceType(StrEnum):
     NETWORK = "network"
     SUBNET = "subnet"
     PORT = "port"
+    ROUTER = "router"
+    ROUTER_INTERFACE = "router_interface"
+    SECURITY_GROUP = "security_group"
+    SECURITY_GROUP_RULE = "security_group_rule"
+    FLOATING_IP = "floating_ip"
     VOLUME = "volume"
 
 
