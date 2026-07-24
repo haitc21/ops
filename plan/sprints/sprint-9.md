@@ -3,8 +3,8 @@
 **Status:** Implementation complete; internal connectivity acceptance covered by tests  
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 40 OPS points  
-**Sprint Goal:** Manage OpenStack Neutron resources required for private VM
-connectivity, with explicit scope gates and normalized relationship results.
+**Sprint Goal:** Manage OpenStack Neutron resources required for VM access from
+the corporate LAN, with explicit scope gates and normalized relationship results.
 
 **Canonical CPS plan:**
 `../../../cps/docs/superpowers/plans/2026-07-24-openstack-resource-control-plane-expansion.md`
@@ -21,7 +21,7 @@ connectivity, with explicit scope gates and normalized relationship results.
 
 ## Delivery tasks
 
-- [x] Confirm private connectivity as the primary acceptance target.
+- [x] Confirm corporate-LAN connectivity as the primary acceptance target.
 - [x] Add Neutron inventory collectors and primitive-only mappers.
 - [x] Implement network/subnet/router/interface handlers.
 - [x] Implement port/security-group/rule handlers.
@@ -34,10 +34,10 @@ connectivity, with explicit scope gates and normalized relationship results.
 ## Acceptance
 
 - Handlers use supported OpenStackSDK Neutron APIs and never emit SDK objects.
-- Project scope is sufficient for private topology operations; administrative scope is required only for shared/external resources.
-- A VM can use the created port and its private address is returned to CPS.
+- Project scope is sufficient for tenant topology; shared/external/provider-network operations are capability-gated.
+- A VM receives a floating IP or provider-network IP that is reachable from the corporate LAN and is returned to CPS.
 - Relationship operations are idempotent and safe under duplicate delivery.
-- Floating IP remains optional and does not block internal connectivity.
+- Floating IP is required unless the provider network directly assigns a corporate-LAN address.
 
 ## Risks and impediments
 
@@ -49,11 +49,11 @@ connectivity, with explicit scope gates and normalized relationship results.
 
 ## Review evidence
 
-- Demo scenario: Neutron topology operations return normalized resources and private-address-ready port relationships.
+- Demo scenario: Neutron topology operations return normalized resources plus a LAN-reachable floating/provider-network address.
 - Test commands and results: OPS `358 passed, 24 skipped`; network focused tests pass; Ruff and targeted mypy pass.
 - CPS checksum: network operations map to the pinned generic resource-operation envelope.
-- Internal connectivity result: private topology path is implemented and tested; live provider smoke test remains environment-dependent.
-- Known limitations: public floating-IP acceptance is optional.
+- Internal connectivity result: private topology handlers are tested; corporate-LAN smoke test is pending external-network reachability.
+- Known limitations: external network mapping, floating-IP association, and security-group ingress must be verified live.
 
 ## Retrospective actions
 
