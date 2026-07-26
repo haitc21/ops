@@ -1,5 +1,7 @@
 # OPS-1303 — Reliable terminal result publication
 
+**Status:** Completed — verified by terminal publication and CPS persistence acceptance.
+
 ## Goal
 
 Make progress and terminal outcomes independently recoverable so a partial

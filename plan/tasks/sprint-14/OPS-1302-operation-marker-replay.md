@@ -1,5 +1,7 @@
 # OPS-1302 — Replay-safe server discovery by operation marker
 
+**Status:** Completed — verified by marker replay tests and live VM creation.
+
 ## Goal
 
 Find and reuse the Nova server created by an earlier delivery so retries and

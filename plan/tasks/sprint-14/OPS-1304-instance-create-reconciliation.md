@@ -1,5 +1,7 @@
 # OPS-1304 — Reconcile stale VM-create operations
 
+**Status:** Completed — bounded provider lookup and terminal convergence verified in the joint acceptance flow.
+
 ## Goal
 
 Answer a CPS reconciliation command with provider truth without repeating the

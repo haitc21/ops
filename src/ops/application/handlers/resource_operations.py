@@ -245,12 +245,16 @@ def _execute(
         "router",
         "port",
         "security_group",
+        "security-group",
         "security_group_rule",
+        "security-group-rule",
         "floating_ip",
         "floatingip",
+        "floating-ip",
         "security",
         "security_rule",
         "router_interface",
+        "router-interface",
         "security.group",
         "security.group.rule",
         "router.interface",
@@ -404,11 +408,15 @@ def _network_proxy(connection: Any) -> Any:
 def _network_type(resource_type: str) -> str:
     return {
         "floatingip": "floating_ip",
+        "floating-ip": "floating_ip",
         "security": "security_group",
         "security_rule": "security_group_rule",
+        "security-group": "security_group",
+        "security-group-rule": "security_group_rule",
         "security.group": "security_group",
         "security.group.rule": "security_group_rule",
         "router.interface": "router_interface",
+        "router-interface": "router_interface",
     }.get(resource_type, resource_type)
 
 

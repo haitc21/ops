@@ -1,5 +1,7 @@
 # OPS-1301 — Bounded VM-create convergence
 
+**Status:** Completed — verified by OPS tests and live OpenStack acceptance.
+
 ## Goal
 
 Return a terminal VM-create result after Nova reaches a terminal state without

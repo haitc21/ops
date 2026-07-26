@@ -34,6 +34,50 @@ from ops.openstack.waiter import (
 logger = logging.getLogger(__name__)
 
 
+async def _sdk_call(call: Any, *args: Any, timeout_seconds: float, **kwargs: Any) -> Any:
+    """Run one blocking SDK call with a coroutine-level deadline."""
+    return await asyncio.wait_for(
+        asyncio.to_thread(call, *args, **kwargs),
+        timeout=timeout_seconds,
+    )
+
+
+async def _find_server_by_operation(
+    compute: Any,
+    operation_id: uuid.UUID,
+    *,
+    server_name: str,
+    timeout_seconds: float,
+) -> Any | None:
+    """Find a matching server without an unbounded provider-wide listing."""
+    marker = str(operation_id)
+    candidate = await _sdk_call(
+        compute.find_server,
+        server_name,
+        ignore_missing=True,
+        timeout_seconds=timeout_seconds,
+    )
+    if candidate is not None:
+        metadata = getattr(candidate, "metadata", {}) or {}
+        if str(metadata.get("cmp_operation_id", "")) == marker:
+            return candidate
+    return None
+
+
+async def _find_server_by_marker(
+    compute: Any, operation_id: uuid.UUID, *, timeout_seconds: float
+) -> Any | None:
+    """Fallback marker scan used only when Nova lost the create response."""
+    marker = str(operation_id)
+    servers = await _sdk_call(
+        lambda: list(compute.servers(details=True, metadata={"cmp_operation_id": marker})),
+        timeout_seconds=timeout_seconds,
+    )
+    if len(servers) > 1:
+        raise RuntimeError("provider returned multiple servers for one operation marker")
+    return servers[0] if servers else None
+
+
 def _ssh_hosts(server: Any) -> list[str]:
     addresses = getattr(server, "addresses", {}) or {}
     hosts: list[str] = []
@@ -146,50 +190,72 @@ async def instance_create(
                         name=managed_key_name,
                         public_key=request.ssh_public_key,
                     )
-            existing = await asyncio.to_thread(
-                compute.find_server, f"cmp-operation-{command.operation_id}", ignore_missing=True
+            existing = await _find_server_by_operation(
+                compute,
+                command.operation_id,
+                server_name=request.name,
+                timeout_seconds=settings.openstack_timeout_seconds,
             )
             if existing is None:
                 try:
-                    existing = await asyncio.to_thread(
+                    existing = await _sdk_call(
                         compute.create_server,
                         **_create_kwargs(payload, command.operation_id, key_name=managed_key_name),
+                        timeout_seconds=settings.openstack_timeout_seconds,
                     )
                 except os_exc.EndpointNotFound:
                     # Nova may commit the server before the SDK loses the response;
                     # reconcile by the idempotency marker before reporting failure.
-                    existing = await asyncio.to_thread(
-                        compute.find_server,
-                        f"cmp-operation-{command.operation_id}",
-                        ignore_missing=True,
+                    existing = await _find_server_by_marker(
+                        compute,
+                        command.operation_id,
+                        timeout_seconds=settings.openstack_timeout_seconds,
                     )
                     if existing is None:
                         raise
             progress = _event(
                 command,
                 OPERATION_PROGRESS,
-                {"progress": 20, "state": "RUNNING", "message": "instance create started"},
+                {
+                    "progress": 20,
+                    "state": "RUNNING",
+                    "message": "instance create started",
+                    "provider_resource_id": str(existing.id),
+                    "provider_status": str(getattr(existing, "status", "BUILD")).upper(),
+                },
                 "instance.progress.running",
             )
             try:
                 instance = await wait_for_state(
-                    lambda: asyncio.to_thread(compute.get_server, existing.id),
-                    config=WaiterConfig(target_states=frozenset({"ACTIVE", "SHUTOFF"})),
+                    lambda: _sdk_call(
+                        compute.get_server,
+                        existing.id,
+                        timeout_seconds=settings.openstack_timeout_seconds,
+                    ),
+                    config=WaiterConfig(
+                        target_states=frozenset({"ACTIVE", "SHUTOFF"}),
+                        timeout_seconds=min(300.0, settings.openstack_timeout_seconds * 10),
+                    ),
                 )
             except (os_exc.EndpointNotFound, WaiterProviderError):
                 # Some dev clouds expose a stale compute endpoint after create;
                 # retain Nova's authoritative create response for reconciliation.
                 try:
-                    instance = await asyncio.to_thread(compute.get_server, existing.id)
+                    instance = await _sdk_call(
+                        compute.get_server,
+                        existing.id,
+                        timeout_seconds=settings.openstack_timeout_seconds,
+                    )
                 except os_exc.SDKException:
                     instance = existing
                 if str(getattr(instance, "status", "")).upper() not in {"ACTIVE", "SHUTOFF"}:
                     raise
             try:
-                ports, volumes = await asyncio.to_thread(
-                    collect_instance_relationships, connection, str(instance.id)
+                ports, volumes = await asyncio.wait_for(
+                    asyncio.to_thread(collect_instance_relationships, connection, str(instance.id)),
+                    timeout=settings.openstack_timeout_seconds,
                 )
-            except os_exc.SDKException:
+            except (os_exc.SDKException, TimeoutError):
                 ports, volumes = [], []
             floating_ip: str | None = None
             floating_ip_id: str | None = None
@@ -198,24 +264,29 @@ async def instance_create(
                 floating = next(
                     (
                         item
-                        for item in await asyncio.to_thread(lambda: list(connection.network.ips()))
+                        for item in await asyncio.wait_for(
+                            asyncio.to_thread(lambda: list(connection.network.ips())),
+                            timeout=settings.openstack_timeout_seconds,
+                        )
                         if getattr(item, "description", None) == marker
                     ),
                     None,
                 )
                 if floating is None:
-                    floating = await asyncio.to_thread(
+                    floating = await _sdk_call(
                         connection.network.create_ip,
                         floating_network_id=request.floating_network_provider_resource_id,
                         description=marker,
+                        timeout_seconds=settings.openstack_timeout_seconds,
                     )
                 if floating is None:
                     raise RuntimeError("floating IP allocation did not return a resource")
                 if not getattr(floating, "port_id", None):
-                    await asyncio.to_thread(
+                    await _sdk_call(
                         compute.add_floating_ip_to_server,
                         instance,
                         floating.floating_ip_address,
+                        timeout_seconds=settings.openstack_timeout_seconds,
                     )
                 floating_ip = str(floating.floating_ip_address)
                 floating_ip_id = str(floating.id)

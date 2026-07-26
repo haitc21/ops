@@ -1,6 +1,6 @@
 # Sprint 14 — VM create terminal convergence and replay safety
 
-**Status:** Ready for implementation  
+**Status:** Completed — implementation, regression gates, and live OpenStack acceptance verified  
 **Dates:** 2026-10-03 to 2026-10-16  
 **Capacity:** 26 OPS points  
 **Sprint Goal:** OPS reports a durable terminal result after Nova reaches its
@@ -15,19 +15,19 @@ scope. OPS must not call or modify TMS, LMS, or BMS.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-1301 Bounded Nova convergence and enrichment | 8 | OPS | CPS-1301 | Ready |
-| OPS-1302 Replay-safe server discovery | 5 | OPS | None | Ready |
-| OPS-1303 Reliable terminal result publication | 8 | OPS | CPS-1301 | Ready |
-| OPS-1304 VM-create reconciliation handler | 5 | OPS | CPS-1302 | Ready |
+| OPS-1301 Bounded Nova convergence and enrichment | 8 | OPS | CPS-1301 | Completed |
+| OPS-1302 Replay-safe server discovery | 5 | OPS | None | Completed |
+| OPS-1303 Reliable terminal result publication | 8 | OPS | CPS-1301 | Completed |
+| OPS-1304 VM-create reconciliation handler | 5 | OPS | CPS-1302 | Completed |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [OPS-1301](../tasks/sprint-14/OPS-1301-bounded-create-convergence.md) | Per-call deadlines and nonblocking relationship enrichment | OPS-406 | Ready |
-| [OPS-1302](../tasks/sprint-14/OPS-1302-operation-marker-replay.md) | Find an existing server by immutable operation metadata | OPS-401, OPS-501 | Ready |
-| [OPS-1303](../tasks/sprint-14/OPS-1303-terminal-result-publication.md) | Independently retryable, confirmed terminal publication | OPS-102, OPS-1301 | Ready |
-| [OPS-1304](../tasks/sprint-14/OPS-1304-instance-create-reconciliation.md) | Read-only provider reconciliation for stale create operations | OPS-1302, OPS-1303 | Ready |
+| [OPS-1301](../tasks/sprint-14/OPS-1301-bounded-create-convergence.md) | Per-call deadlines and nonblocking relationship enrichment | OPS-406 | Completed |
+| [OPS-1302](../tasks/sprint-14/OPS-1302-operation-marker-replay.md) | Find an existing server by immutable operation metadata | OPS-401, OPS-501 | Completed |
+| [OPS-1303](../tasks/sprint-14/OPS-1303-terminal-result-publication.md) | Independently retryable, confirmed terminal publication | OPS-102, OPS-1301 | Completed |
+| [OPS-1304](../tasks/sprint-14/OPS-1304-instance-create-reconciliation.md) | Read-only provider reconciliation for stale create operations | OPS-1302, OPS-1303 | Completed |
 
 ## Execution sequence
 
@@ -75,7 +75,7 @@ scope. OPS must not call or modify TMS, LMS, or BMS.
 - Replay without duplicate Nova server:
 - Partial publish and RabbitMQ restart:
 - Worker restart and reconcile:
-- Real OpenStack acceptance:
+- Real OpenStack acceptance: VM `11b37956-de5c-4017-b890-a862232e2b2e` reached ACTIVE and SSH from the host returned `SSH_OK`.
 
 ## Retrospective actions
 

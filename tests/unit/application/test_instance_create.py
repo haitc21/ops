@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
-from ops.application.handlers.instance_create import _create_kwargs
+import pytest
+
+from ops.application.handlers.instance_create import _create_kwargs, _find_server_by_operation
 from ops.contracts.messages.instance import InstanceCommandPayload
 
 
@@ -37,3 +40,21 @@ def test_create_kwargs_does_not_put_private_key_material_in_request() -> None:
 
     assert "private_key" not in kwargs
     assert "ssh_public_key" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_find_server_uses_operation_metadata_not_display_name() -> None:
+    operation_id = uuid.uuid4()
+    expected = SimpleNamespace(metadata={"cmp_operation_id": str(operation_id)})
+
+    class Compute:
+        def find_server(self, name: str, *, ignore_missing: bool) -> object | None:
+            assert name == "user-visible-name"
+            assert ignore_missing is True
+            return expected
+
+    result = await _find_server_by_operation(
+        Compute(), operation_id, server_name="user-visible-name", timeout_seconds=1
+    )
+
+    assert result is expected
