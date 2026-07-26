@@ -6,6 +6,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
 
 from openstack import connection
 
@@ -28,20 +29,26 @@ def openstack_connection(
             verify: bool | str = ca_path
         else:
             verify = resolution.verify_tls
+        connection_kwargs: dict[str, Any] = {
+            "auth_url": resolution.auth_url,
+            "username": resolution.username,
+            "password": resolution.password,
+            "user_domain_name": resolution.user_domain_name,
+            "project_domain_name": resolution.project_domain_name,
+            "region_name": resolution.region_name,
+            "interface": resolution.interface,
+            "verify": verify,
+            "app_name": "CMP",
+            "app_version": "0.1",
+            "connect_retries": 0,
+            "http_timeout": settings.openstack_timeout_seconds,
+        }
+        if resolution.scope_kind == "SYSTEM":
+            connection_kwargs["system_scope"] = "all"
+        else:
+            connection_kwargs["project_name"] = resolution.project_name
         conn = connection.Connection(
-            auth_url=resolution.auth_url,
-            username=resolution.username,
-            password=resolution.password,
-            project_name=resolution.project_name,
-            user_domain_name=resolution.user_domain_name,
-            project_domain_name=resolution.project_domain_name,
-            region_name=resolution.region_name,
-            interface=resolution.interface,
-            verify=verify,
-            app_name="CMP",
-            app_version="0.1",
-            connect_retries=0,
-            http_timeout=settings.openstack_timeout_seconds,
+            **connection_kwargs,
         )
         yield conn
     finally:

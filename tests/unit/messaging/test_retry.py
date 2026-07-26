@@ -34,6 +34,23 @@ def test_parse_command_delivery_metadata_ignores_broker_headers() -> None:
     assert metadata.attempt == 1
 
 
+@pytest.mark.parametrize(
+    "routing_key",
+    [
+        "openstack.identity.domain.create",
+        "openstack.identity.project.create",
+        "openstack.identity.role.assignment.ensure",
+        "openstack.quota.update",
+        "openstack.network.create",
+    ],
+)
+def test_new_openstack_command_routing_keys_are_accepted(routing_key: str) -> None:
+    from ops.messaging.retry import resolve_original_command_routing_key
+
+    metadata = parse_command_delivery_metadata(fresh_delivery_headers())
+    assert resolve_original_command_routing_key(metadata, routing_key) == routing_key
+
+
 def test_build_retry_wire_headers_increments_attempt_once() -> None:
     metadata = DeliveryMetadata.model_validate(fresh_delivery_headers(attempt=1))
     wire = build_retry_wire_headers(

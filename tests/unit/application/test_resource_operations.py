@@ -17,6 +17,7 @@ class Identity:
     def __init__(self) -> None:
         self.created: list[dict[str, object]] = []
         self.existing = None
+        self.updated: list[dict[str, object]] = []
 
     def domains(self, **kwargs):
         return iter(()) if self.existing is None else iter((self.existing,))
@@ -29,6 +30,10 @@ class Identity:
         if self.existing is None:
             raise RuntimeError(value)
         return self.existing
+
+    def update_domain(self, resource, **kwargs):
+        self.updated.append(kwargs)
+        return resource
 
 
 def _operation_request(
@@ -70,6 +75,23 @@ def test_domain_create_with_provider_id_is_replay_safe() -> None:
     assert state is ResourceOperationState.SUCCEEDED
     assert result.id == "d1"
     assert identity.created == []
+
+
+def test_domain_disable_updates_provider_resource_without_cmp_metadata() -> None:
+    identity = Identity()
+    identity.existing = SimpleNamespace(id="d1", name="acme")
+    result, state = _execute(
+        SimpleNamespace(identity=identity),
+        _operation_request(
+            "domain",
+            "disable",
+            {"binding_id": str(uuid4()), "org_id": "org-1"},
+            provider_resource_id="d1",
+        ),
+    )
+    assert state is ResourceOperationState.SUCCEEDED
+    assert result.id == "d1"
+    assert identity.updated == [{"enabled": False}]
 
 
 def test_quota_unlimited_normalizes_to_none() -> None:

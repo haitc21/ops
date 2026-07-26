@@ -1,6 +1,6 @@
 # Sprint 10 — OpenStack tenant binding and ownership
 
-**Status:** In progress  
+**Status:** Complete — implementation, live acceptance, and cleanup verified
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 8 OPS points  
 **Sprint Goal:** OPS can execute explicit OpenStack domain/project create
@@ -14,7 +14,7 @@ implicitly from inventory.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-704 OpenStack domain/project create handlers | 8 | OPS | CPS-704 | In progress |
+| OPS-704 OpenStack domain/project create handlers | 8 | OPS | CPS-704 | Done |
 
 ## Delivery tasks
 
@@ -52,13 +52,15 @@ implicitly from inventory.
 ## Review evidence
 
 - Demo scenario: explicit provider aggregate resolution and OpenStack connection
-  validation passed; identity command was published with `provider_id`.
-- Test/migration commands and results: OPS `365 passed, 24 skipped`; Ruff and
-  mypy passed; CPS contract boundary remained secret-safe.
-- Contract checksum:
-- Known limitations: live identity command remained `QUEUED` without a terminal
-  event, and project-scoped admin credentials cannot satisfy system mutation
-  policy for domain creation.
+  validation passed; domain/project commands were published with provider and
+  ownership context and completed through the live worker.
+- Test/migration commands and results: OPS full suite, Ruff, mypy, contract
+  checksum validation, and Compose health passed; CPS contract boundary remained
+  secret-safe.
+- Contract checksum: CPS and OPS credential-scope contracts are synchronized;
+  identity command delivery keys are allowlisted on both services.
+- Live evidence: domain/project create, update-disable, and delete operations
+  reached `SUCCEEDED`; no provider resource remained after cleanup.
 
 ## Retrospective actions
 

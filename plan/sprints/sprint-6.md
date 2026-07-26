@@ -13,21 +13,21 @@ the CPS/OPS demo on production-only hardening.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-601 Capability/version discovery | 8 | OPS | Pinned capability contract | Ready |
-| OPS-602 Delete waiter/convergence | 5 | OPS | Operation event persistence | Ready |
-| CPS-603 Production key-ring fail-fast | 3 | CPS | None | Ready |
-| OPS-603 Recursive mapper sanitization | 5 | OPS | Inventory contracts | Ready |
-| OPS-604 Immutable OPS runtime image | 2 | OPS | None | Ready |
+| OPS-601 Capability/version discovery | 8 | OPS | Pinned capability contract | Done |
+| OPS-602 Delete waiter/convergence | 5 | OPS | Operation event persistence | Done |
+| CPS-603 Production key-ring fail-fast | 3 | CPS | None | Done |
+| OPS-603 Recursive mapper sanitization | 5 | OPS | Inventory contracts | Done |
+| OPS-604 Immutable OPS runtime image | 2 | OPS | None | Done |
 
 ## Delivery tasks
 
-- [ ] Inspect and use supported OpenStackSDK version/proxy APIs.
-- [ ] Add failing capability, waiter, replay, and mapper-boundary tests.
-- [ ] Implement P0 behavior without direct service HTTP clients.
-- [ ] Verify retry, timeout, replay, and redaction behavior.
-- [ ] Run the local Compose demo with CPS internal resolver DNS.
-- [ ] Harden the OPS image after the first three technical slices and demo checkpoint.
-- [ ] Run the OPS Definition of Done quality gates.
+- [x] Inspect and use supported OpenStackSDK version/proxy APIs.
+- [x] Add failing capability, waiter, replay, and mapper-boundary tests.
+- [x] Implement P0 behavior without direct service HTTP clients.
+- [x] Verify retry, timeout, replay, and redaction behavior.
+- [x] Run the local Compose demo with CPS internal resolver DNS.
+- [x] Harden the OPS image after the first three technical slices and demo checkpoint.
+- [x] Run the OPS Definition of Done quality gates.
 
 ## Deferred dependency
 

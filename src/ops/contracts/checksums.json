@@ -11,7 +11,7 @@
     "fixtures/transport/retry_delivery.json": "f68a60bb709691a17dfd9f7f0daca679f3e676e482307b370e6dc278577a6dfd",
     "jsonschema/capability_document.schema.json": "061c00c87b7b4d774646500936d1e3f727c2010250254bcf6719db3c672dd05c",
     "jsonschema/common_error.schema.json": "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e",
-    "jsonschema/credential_resolution.schema.json": "36a3b1a7c270f1e3c953b4953977ca011f16d178badf28b58bb11f95a5c60732",
+    "jsonschema/credential_resolution.schema.json": "46e0531ee57865a469b41471c6c797c3fb3033b24a7c9f9ed4df04552fea56d3",
     "jsonschema/delivery_metadata.schema.json": "a462b1dd6d10a72986d80f70ba6e2b6c98dde3b911eaa792bbfa8b612b2e63bf",
     "jsonschema/message_envelope.schema.json": "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655",
     "jsonschema/resource_operation.schema.json": "cb1d6ad73a43bfed344baf6e2abc311131894d6d8b1b6fd1b71b870f9f7eadc8"

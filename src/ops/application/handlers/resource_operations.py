@@ -17,13 +17,14 @@ from openstack import exceptions as os_exc
 from ops.application.credential_resolver import CpsResolutionError, CredentialResolver
 from ops.application.handlers.registry import TypedHandlerFn
 from ops.config import Settings
+from ops.contracts.errors import CommonError, ErrorCategory
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.envelope import MessageEnvelope
 from ops.contracts.messages.resource_operations import (
     ResourceOperationRequest,
     ResourceOperationState,
 )
-from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED
+from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED, OPERATION_PROGRESS
 from ops.messaging.consumer import HandlerFailedResult, HandlerRetryableError, HandlerSuccess
 from ops.observability.redaction import redact_mapping
 from ops.openstack.errors import normalize_openstack_exception
@@ -38,7 +39,13 @@ def _event(
     label: str,
     message_type: str = OPERATION_COMPLETED,
 ) -> bytes:
-    body = payload if message_type == OPERATION_COMPLETED else {"error": payload}
+    body = (
+        payload
+        if message_type == OPERATION_PROGRESS
+        else {"result": payload}
+        if message_type == OPERATION_COMPLETED
+        else {"error": payload}
+    )
     event = MessageEnvelope.model_validate(
         {
             "message_id": uuid.uuid5(command.operation_id, label),
@@ -114,21 +121,22 @@ async def resource_operation(
             command.credential_reference, command.provider_connection_id
         )
         with openstack_connection(resolution, settings) as connection:
+            await asyncio.to_thread(connection.authorize)
             if not _scope_allowed(connection, request.required_scope.value):
-                result = request.model_dump(mode="json") | {
-                    "state": ResourceOperationState.UNSUPPORTED.value,
-                    "error": {
-                        "code": "SCOPE_INSUFFICIENT",
-                        "message": "effective provider scope is insufficient",
-                    },
-                }
-                return HandlerSuccess(
-                    result_messages=(
-                        (
-                            OPERATION_COMPLETED,
-                            _event(command, result, "resource.operation.unsupported"),
-                        ),
-                    )
+                error = CommonError(
+                    code="SCOPE_INSUFFICIENT",
+                    message="effective provider scope is insufficient",
+                    category=ErrorCategory.AUTHORIZATION,
+                    retryable=False,
+                )
+                return HandlerFailedResult(
+                    result_routing_key=OPERATION_FAILED,
+                    result_body=_event(
+                        command,
+                        error.model_dump(mode="json"),
+                        "resource.operation.scope-insufficient",
+                        OPERATION_FAILED,
+                    ),
                 )
             resource, state = await asyncio.to_thread(_execute, connection, request)
             result = request.model_dump(mode="json") | {"state": state.value}
@@ -142,6 +150,19 @@ async def resource_operation(
                     result["provider_resource_id"] = str(provider_resource_id)
             return HandlerSuccess(
                 result_messages=(
+                    (
+                        OPERATION_PROGRESS,
+                        _event(
+                            command,
+                            {
+                                "progress": 10,
+                                "state": "RUNNING",
+                                "message": "resource operation started",
+                            },
+                            "resource.operation.started",
+                            OPERATION_PROGRESS,
+                        ),
+                    ),
                     (OPERATION_COMPLETED, _event(command, result, "resource.operation.completed")),
                 )
             )
@@ -194,6 +215,11 @@ def _execute(
     if resource_type in {"domain", "project"}:
         getter = getattr(identity, f"get_{resource_type}")
         creator = getattr(identity, f"create_{resource_type}")
+        provider_params = {
+            key: value
+            for key, value in params.items()
+            if key not in {"binding_id", "org_id", "workspace_id"}
+        }
         if operation == "create":
             name = str(params["name"])
             # A display-name match is not an ownership proof.  CPS owns the
@@ -216,7 +242,7 @@ def _execute(
                     raise os_exc.ConflictException(
                         "provider resource name is already used by an unbound object"
                     )
-            return creator(**params), ResourceOperationState.SUCCEEDED
+            return creator(**provider_params), ResourceOperationState.SUCCEEDED
         if not provider_id:
             raise ValueError("provider_resource_id is required")
         try:
@@ -225,9 +251,11 @@ def _execute(
             if operation == "delete":
                 return None, ResourceOperationState.ALREADY_ABSENT
             raise
-        if operation in {"update", "patch"}:
+        if operation in {"update", "patch", "disable"}:
             updater = getattr(identity, f"update_{resource_type}")
-            return updater(existing, **params), ResourceOperationState.SUCCEEDED
+            if operation == "disable":
+                provider_params["enabled"] = False
+            return updater(existing, **provider_params), ResourceOperationState.SUCCEEDED
         if operation == "delete":
             deleter = getattr(identity, f"delete_{resource_type}")
             deleter(existing, ignore_missing=True)

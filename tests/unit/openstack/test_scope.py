@@ -17,6 +17,13 @@ def test_scope_discovery_reports_system_scope_and_identity_operations() -> None:
     assert "token" not in repr(result).lower()
 
 
+def test_scope_discovery_reads_system_scope_from_authorized_auth_ref() -> None:
+    auth = SimpleNamespace(auth_ref=SimpleNamespace(system={"all": True}))
+    result = discover_effective_scope(_connection(auth))
+    assert result["scope_kind"] == "SYSTEM"
+    assert result["scope_id"] == "all"
+
+
 def test_scope_discovery_reports_project_scope_without_infering_admin() -> None:
     result = discover_effective_scope(
         _connection(

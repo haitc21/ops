@@ -1,6 +1,6 @@
 # Sprint 8 — Identity lifecycle, role assignments, and quotas
 
-**Status:** Complete for internal-network provisioning target  
+**Status:** Complete — live disposable identity lifecycle and cleanup verified
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 21 OPS points  
 **Sprint Goal:** Safely execute OpenStack Keystone identity mutations and quota
@@ -16,7 +16,7 @@ operations with explicit scope authorization and replay-safe events.
 | OPS-801 Domain/project handlers | 5 | OPS | CPS-801 | Done |
 | OPS-802 Role assignment handlers | 5 | OPS | CPS-802 | Done |
 | OPS-803 Quota collectors/handlers | 5 | OPS | CPS-803 | Done |
-| OPS-804 Identity real-cloud acceptance | 6 | OPS/CPS | CPS-804 | Deferred |
+| OPS-804 Identity real-cloud acceptance | 6 | OPS/CPS | CPS-804 | Done |
 
 ## Delivery tasks
 
@@ -27,7 +27,7 @@ operations with explicit scope authorization and replay-safe events.
 - [x] Implement compute/network/block-storage quota collectors and updates.
 - [x] Normalize policy errors, dependency conflicts, and already-absent results.
 - [x] Add replay/redelivery and provider cleanup tests.
-- [ ] Run real OpenStack disposable identity acceptance.
+- [x] Run real OpenStack disposable identity acceptance.
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -48,11 +48,16 @@ operations with explicit scope authorization and replay-safe events.
 
 ## Review evidence
 
-- Demo scenario:
-- Test commands and results: OPS `355 passed, 24 skipped`; resource-operation/contract tests `86 passed`; Ruff and targeted mypy passed.
+- Demo scenario: OPS resolved a system-scoped OpenStack connection and executed
+  domain/project create, update-disable, and delete commands from CPS.
+- Test commands and results: OPS full suite, resource-operation/contract tests,
+  Ruff, mypy, and contract checksum validation passed.
 - CPS checksum: generic resource-operation contract remains pinned and byte-identical.
-- Real-cloud lifecycle/cleanup result: deferred; it is not required for the internal-network VM provisioning target.
-- Known limitations: public floating-IP and administrative identity acceptance remain optional follow-up work.
+- Real-cloud lifecycle/cleanup result: disposable domain `codex-domain-11` and
+  project `codex-project-11` reached terminal success and were absent after
+  cleanup on the live controller.
+- Known limitations: role/quota live mutation acceptance and public floating-IP
+  acceptance remain deployment-specific follow-up work.
 
 ## Retrospective actions
 

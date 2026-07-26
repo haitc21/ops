@@ -100,6 +100,7 @@ class CredentialResolution(_Versioned):
     username: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=1, max_length=4096)
     user_domain_name: str = Field(min_length=1, max_length=255)
+    scope_kind: str = Field(default="PROJECT", pattern="^(SYSTEM|DOMAIN|PROJECT)$")
     project_name: str = Field(min_length=1, max_length=255)
     project_domain_name: str = Field(min_length=1, max_length=255)
     region_name: str = Field(min_length=1, max_length=255)

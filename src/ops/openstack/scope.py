@@ -78,9 +78,23 @@ def discover_effective_scope(connection: Any) -> dict[str, Any]:
             "reason": "AUTH_PLUGIN_UNAVAILABLE",
         }
     system_scope = getattr(auth, "system_scope", None)
+    auth_ref = getattr(auth, "auth_ref", None)
+    if system_scope is None and auth_ref is not None:
+        system = getattr(auth_ref, "system", None)
+        if isinstance(system, dict) and system:
+            system_scope = next(iter(system))
     domain_id = getattr(auth, "domain_id", None)
     domain_name = getattr(auth, "domain_name", None)
     project_id = _session_project_id(connection, auth)
+    if auth_ref is not None:
+        project = getattr(auth_ref, "project", None)
+        domain = getattr(auth_ref, "domain", None)
+        if project_id is None and isinstance(project, dict):
+            project_id = str(project.get("id") or project.get("name") or "") or None
+        if domain_id is None and isinstance(domain, dict):
+            domain_id = domain.get("id")
+        if domain_name is None and isinstance(domain, dict):
+            domain_name = domain.get("name")
 
     if system_scope:
         kind = ScopeKind.SYSTEM
