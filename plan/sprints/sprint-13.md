@@ -17,26 +17,19 @@
 | OPS-1201 Provider-owned credential contract | 8 | OPS | CPS-1201, CPS-1202 | Ready |
 | OPS-1202 Authorization decision command context | 5 | OPS | CPS-1203 | Ready |
 
-## Delivery tasks
+## Task backlog
 
-### OPS-1201 — Provider-owned credential contract
+| Task | Deliverable | Depends on | Status |
+|---|---|---|---|
+| [OPS-1201](../tasks/sprint-13/OPS-1201-provider-project-contract.md) | Connection-only provider resolution and normalized project ownership | CPS-1201, CPS-1202 | Ready |
+| [OPS-1202](../tasks/sprint-13/OPS-1202-authorization-context.md) | Safe authorization context validation and replay behavior | CPS-1203, OPS-1201 | Ready |
 
-- [ ] Pin CPS schemas and fixtures that remove `credential_reference`.
-- [ ] Resolve provider access through `provider_connection_id` only.
-- [ ] Reject legacy/malformed commands before OpenStack access.
-- [ ] Preserve project owner identifiers in normalized resource payloads.
-- [ ] Map `location.project.id`, `project_id`, and `tenant_id` consistently for all tenant-owned collectors and operation results.
-- [ ] Verify SDK objects, usernames, passwords, tokens, and decrypted secrets do not escape adapter boundaries.
-- [ ] Add replay and compatibility tests for system/project-scoped connections.
+## Execution sequence
 
-### OPS-1202 — Authorization decision context
-
-- [ ] Pin the safe authorization decision metadata contract from CPS.
-- [ ] Reject user-originated commands missing required decision context.
-- [ ] Propagate decision and correlation IDs to safe logs/results without JWT, roles, or secret material.
-- [ ] Keep system reconciliation commands explicitly distinguished from user-initiated commands.
-- [ ] Prove OPS performs no TMS/LMS network call and makes no independent workspace-role decision.
-- [ ] Add duplicate, expired-at-dispatch, malformed-context, and redaction tests.
+1. Pin CPS-1201/1202 contracts and complete OPS-1201.
+2. Pin the CPS-1203 authorization context and complete OPS-1202.
+3. Run joint checksums, replay, expiry, owner-normalization, and redaction gates.
+4. Verify OPS makes no TMS/LMS call and those repositories remain untouched.
 
 ## Acceptance
 

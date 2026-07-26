@@ -59,5 +59,7 @@ Sprint Planning confirms contract readiness and capacity.
 
 - Product Backlog: `plan/product-backlog.md`.
 - Sprint Backlog: `plan/sprints/sprint-<n>.md`, created during joint planning.
+- Task Backlog: implementation-ready task packets live under
+  `plan/tasks/sprint-<n>/` and are linked from the sprint backlog.
 - Contract readiness and integration risks are reviewed with CPS during refinement and Daily Scrum.
 - Sprint Review demonstrates provider behavior through CPS whenever the paired slice exists.
