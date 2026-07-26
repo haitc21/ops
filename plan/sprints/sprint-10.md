@@ -1,6 +1,6 @@
 # Sprint 10 — OpenStack tenant binding and ownership
 
-**Status:** Proposed  
+**Status:** In progress  
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 8 OPS points  
 **Sprint Goal:** OPS can execute explicit OpenStack domain/project create
@@ -14,18 +14,18 @@ implicitly from inventory.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-704 OpenStack domain/project create handlers | 8 | OPS | CPS-704 | Ready |
+| OPS-704 OpenStack domain/project create handlers | 8 | OPS | CPS-704 | In progress |
 
 ## Delivery tasks
 
-- [ ] Confirm CPS contract/checksum readiness for binding create commands keyed
+- [x] Confirm CPS contract/checksum readiness for binding create commands keyed
   by `provider_id`.
-- [ ] Add failing handler and replay tests for domain and project creation.
-- [ ] Implement the smallest OpenStackSDK vertical slice for create-domain.
-- [ ] Implement the project create handler with domain dependency validation.
-- [ ] Normalize provider-side conflict and already-exists outcomes.
-- [ ] Verify logs, events, and terminal payloads remain secret-safe.
-- [ ] Run the Definition of Done quality gates.
+- [x] Add failing handler and replay tests for domain and project creation.
+- [x] Implement the smallest OpenStackSDK vertical slice for create-domain.
+- [x] Implement the project create handler with domain dependency validation.
+- [x] Normalize provider-side conflict and already-exists outcomes.
+- [x] Verify logs, events, and terminal payloads remain secret-safe.
+- [x] Run the Definition of Done quality gates.
 
 ## Acceptance
 
@@ -51,10 +51,14 @@ implicitly from inventory.
 
 ## Review evidence
 
-- Demo scenario:
-- Test/migration commands and results:
+- Demo scenario: explicit provider aggregate resolution and OpenStack connection
+  validation passed; identity command was published with `provider_id`.
+- Test/migration commands and results: OPS `365 passed, 24 skipped`; Ruff and
+  mypy passed; CPS contract boundary remained secret-safe.
 - Contract checksum:
-- Known limitations:
+- Known limitations: live identity command remained `QUEUED` without a terminal
+  event, and project-scoped admin credentials cannot satisfy system mutation
+  policy for domain creation.
 
 ## Retrospective actions
 
