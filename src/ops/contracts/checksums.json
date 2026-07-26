@@ -1,6 +1,6 @@
 {
   "files": {
-    "fixtures/commands/connection_validate.json": "f385ad33d4fd1ea27300cc6e5c5a3ef7ab588306caf0ebeed71c721aba097ec4",
+    "fixtures/commands/connection_validate.json": "f7aa515993e8a5bdb718378d724777ce8ef0be45090705ea8891e85896b8c1b3",
     "fixtures/errors/provider_authentication_failed.json": "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b",
     "fixtures/events/inventory_batch.json": "7297cb6a4eddea9af2953fd350de9c169cc75d61322689d63f31d965f4e26018",
     "fixtures/events/operation_completed.json": "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295",
@@ -13,7 +13,7 @@
     "jsonschema/common_error.schema.json": "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e",
     "jsonschema/credential_resolution.schema.json": "46e0531ee57865a469b41471c6c797c3fb3033b24a7c9f9ed4df04552fea56d3",
     "jsonschema/delivery_metadata.schema.json": "a462b1dd6d10a72986d80f70ba6e2b6c98dde3b911eaa792bbfa8b612b2e63bf",
-    "jsonschema/message_envelope.schema.json": "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655",
+    "jsonschema/message_envelope.schema.json": "d16c1a3bfd29dd329dba291925f81cd0b6d992d9269216221f07c562e0066461",
     "jsonschema/resource_operation.schema.json": "cb1d6ad73a43bfed344baf6e2abc311131894d6d8b1b6fd1b71b870f9f7eadc8"
   }
 }

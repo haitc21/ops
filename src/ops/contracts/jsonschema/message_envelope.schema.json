@@ -64,19 +64,6 @@
       "title": "Provider Connection Id",
       "type": "string"
     },
-    "credential_reference": {
-      "anyOf": [
-        {
-          "format": "uuid",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Credential Reference"
-    },
     "trace_context": {
       "additionalProperties": true,
       "title": "Trace Context",

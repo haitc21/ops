@@ -104,15 +104,13 @@ async def instance_action(
         payload = InstanceCommandPayload.model_validate(command.payload)
     except ValueError:
         return HandlerFailedResult()
-    if payload.action is not expected_action or command.credential_reference is None:
+    if payload.action is not expected_action:
         return HandlerFailedResult()
     provider_id = payload.instance_provider_resource_id
     if provider_id is None:
         return HandlerFailedResult()
     try:
-        resolution = await CredentialResolver(settings).resolve(
-            command.credential_reference, command.provider_connection_id
-        )
+        resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             compute = connection.compute
             try:

@@ -12,7 +12,6 @@ from ops.application.credential_resolver import CpsResolutionError, CredentialRe
 from ops.config import Settings
 
 PROVIDER_ID = UUID("44444444-4444-4444-8444-444444444444")
-CREDENTIAL_ID = UUID("66666666-6666-4666-8666-666666666666")
 CONNECTION_ID = UUID("55555555-5555-4555-8555-555555555555")
 
 RESOLUTION_PAYLOAD = {
@@ -94,7 +93,7 @@ async def test_resolver_preserves_safe_cps_error_code_for_retryable_5xx(monkeypa
     )
 
     with pytest.raises(CpsResolutionError) as raised:
-        await resolver.resolve(CREDENTIAL_ID, CONNECTION_ID)
+        await resolver.resolve(CONNECTION_ID)
 
     assert raised.value.code == "CREDENTIAL_KEY_UNAVAILABLE"
     assert raised.value.retryable is True

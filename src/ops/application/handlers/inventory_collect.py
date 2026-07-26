@@ -108,7 +108,7 @@ async def inventory_collect(
     sync_id_raw = command.payload.get("sync_id")
     collections = command.payload.get("collections", list(COLLECTIONS))
     batch_size = command.payload.get("batch_size", 100)
-    if command.credential_reference is None or not isinstance(sync_id_raw, str):
+    if not isinstance(sync_id_raw, str):
         return HandlerFailedResult()
     if not isinstance(collections, list) or not all(item in COLLECTIONS for item in collections):
         return HandlerFailedResult()
@@ -118,9 +118,7 @@ async def inventory_collect(
     except (TypeError, ValueError):
         return HandlerFailedResult()
     try:
-        resolution = await CredentialResolver(settings).resolve(
-            command.credential_reference, command.provider_connection_id
-        )
+        resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             results: list[tuple[str, bytes]] = []
             for resource_type in collections:
@@ -176,8 +174,7 @@ async def inventory_refresh(
     resource_type = command.payload.get("resource_type")
     provider_resource_id = command.payload.get("provider_resource_id")
     if (
-        command.credential_reference is None
-        or not isinstance(sync_id_raw, str)
+        not isinstance(sync_id_raw, str)
         or resource_type not in COLLECTIONS
         or not isinstance(provider_resource_id, str)
         or not provider_resource_id
@@ -185,9 +182,7 @@ async def inventory_refresh(
         return HandlerFailedResult()
     try:
         sync_id = uuid.UUID(sync_id_raw)
-        resolution = await CredentialResolver(settings).resolve(
-            command.credential_reference, command.provider_connection_id
-        )
+        resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             try:
                 item = await asyncio.to_thread(

@@ -99,7 +99,6 @@ def _build_retry_exhausted_failure(body: bytes, error: CommonError) -> bytes | N
             idempotency_key=command.idempotency_key,
             provider_id=command.provider_id,
             provider_connection_id=command.provider_connection_id,
-            credential_reference=command.credential_reference,
             trace_context=dict(command.trace_context),
             payload={"error": error.model_dump(mode="json")},
         )

@@ -71,14 +71,10 @@ def _validate_envelope_fixture(
         return f"fixture failed JSON Schema validation: {label}"
     message_type = raw.get("message_type")
     if label.startswith("fixtures/commands/"):
-        if "credential_reference" not in raw:
-            return f"command fixture missing credential_reference: {label}"
         if message_type == "openstack.connection.validate" and raw.get("payload") != {
             "validation_mode": "SAFE_READ_ONLY"
         }:
             return f"validation command payload is not canonical: {label}"
-    elif "credential_reference" in raw:
-        return f"event fixture must omit credential_reference: {label}"
     message_type = raw.get("message_type")
     if isinstance(message_type, str) and (
         message_type.startswith("cloud.connection.validation.")

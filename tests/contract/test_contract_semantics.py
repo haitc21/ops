@@ -118,9 +118,9 @@ def test_events_omit_credential_reference() -> None:
         assert "credential_reference" not in raw
 
 
-def test_command_contains_credential_reference() -> None:
+def test_command_omits_credential_reference() -> None:
     raw = json.loads(COMMAND_FIXTURE.read_text(encoding="utf-8"))
-    assert raw["credential_reference"] == "66666666-6666-4666-8666-666666666666"
+    assert "credential_reference" not in raw
 
 
 def test_fixtures_have_no_inline_secrets() -> None:

@@ -115,11 +115,7 @@ async def resource_operation(
 ) -> HandlerSuccess | HandlerFailedResult | HandlerRetryableError:
     try:
         request = _request(command)
-        if command.credential_reference is None:
-            return HandlerFailedResult()
-        resolution = await CredentialResolver(settings).resolve(
-            command.credential_reference, command.provider_connection_id
-        )
+        resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             await asyncio.to_thread(connection.authorize)
             if not _scope_allowed(connection, request.required_scope.value):

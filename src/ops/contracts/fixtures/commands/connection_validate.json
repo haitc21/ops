@@ -9,7 +9,6 @@
   "idempotency_key": "validate-conn-synthetic-001",
   "provider_id": "44444444-4444-4444-8444-444444444444",
   "provider_connection_id": "55555555-5555-4555-8555-555555555555",
-  "credential_reference": "66666666-6666-4666-8666-666666666666",
   "trace_context": {},
   "payload": {
     "validation_mode": "SAFE_READ_ONLY"

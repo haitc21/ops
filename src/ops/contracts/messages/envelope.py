@@ -43,7 +43,6 @@ class MessageEnvelope(BaseModel):
     idempotency_key: str | None = None
     provider_id: UUID
     provider_connection_id: UUID
-    credential_reference: UUID | None = None
     trace_context: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
 

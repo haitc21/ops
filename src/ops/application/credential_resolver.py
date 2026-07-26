@@ -1,4 +1,4 @@
-"""Bounded HTTP resolver for CPS internal credential references."""
+"""Bounded HTTP resolver for CPS provider-owned credentials."""
 
 from __future__ import annotations
 
@@ -39,16 +39,10 @@ class CpsResolutionError(RuntimeError):
 class CredentialResolver:
     settings: Settings
 
-    async def resolve(
-        self, credential_reference: UUID, connection_id: UUID
-    ) -> CredentialResolution:
+    async def resolve(self, connection_id: UUID) -> CredentialResolution:
         base_url = self.settings.require_cps_base_url.rstrip("/")
-        url = f"{base_url}/internal/v1/credentials/{credential_reference}"
-        return await self._fetch_resolution(
-            url,
-            params={"provider_connection_id": str(connection_id)},
-            invalid_code="CREDENTIAL_REFERENCE_INVALID",
-        )
+        url = f"{base_url}/internal/v1/connections/{connection_id}/resolution"
+        return await self._fetch_resolution(url, invalid_code="PROVIDER_CONNECTION_NOT_FOUND")
 
     async def resolve_by_provider_id(self, provider_id: UUID) -> CredentialResolution:
         base_url = self.settings.require_cps_base_url.rstrip("/")

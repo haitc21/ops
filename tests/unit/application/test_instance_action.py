@@ -28,7 +28,6 @@ def _delete_command() -> MessageEnvelope:
             "operation_id": "33333333-3333-4333-8333-333333333333",
             "provider_id": "44444444-4444-4444-8444-444444444444",
             "provider_connection_id": "55555555-5555-4555-8555-555555555555",
-            "credential_reference": "66666666-6666-4666-8666-666666666666",
             "payload": {
                 "action": "DELETE",
                 "instance_provider_resource_id": "server-1",
@@ -61,7 +60,7 @@ def test_delete_emits_terminal_result_only_after_provider_absence(monkeypatch) -
         def __init__(self, _settings):
             pass
 
-        async def resolve(self, _credential_reference, _connection_id):
+        async def resolve(self, _connection_id):
             return SimpleNamespace()
 
     @contextmanager
@@ -104,7 +103,7 @@ def test_delete_is_idempotent_when_provider_already_absent(monkeypatch) -> None:
         def __init__(self, _settings):
             pass
 
-        async def resolve(self, _credential_reference, _connection_id):
+        async def resolve(self, _connection_id):
             return SimpleNamespace()
 
     @contextmanager
