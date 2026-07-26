@@ -395,3 +395,22 @@ unless a future migration explicitly reopens them.
 - **Depends on:** OPS-1101..1102 and CPS-1104
 - **Acceptance:** approved provider matrix passes with no leaked secret,
   duplicate mutation, orphaned disposable resource, or lost terminal result.
+
+## Epic OPS-E12 — Provider tenancy contract
+
+### OPS-1201 — Provider-owned credential and project-owner contract
+
+- **Sprint/Priority/Points:** 13 / Must / 8
+- **Depends on:** CPS-1201, CPS-1202
+- **Acceptance:** commands resolve access by provider connection without a
+  credential reference; every tenant resource mapper preserves provider project
+  identity; malformed legacy commands fail before OpenStack access; secrets and
+  SDK objects remain adapter-local.
+
+### OPS-1202 — Authorization decision command context
+
+- **Sprint/Priority/Points:** 13 / Must / 5
+- **Depends on:** CPS-1203, OPS-1201
+- **Acceptance:** user commands require safe CPS decision metadata; missing,
+  malformed, and expired contexts fail before mutation; OPS receives no bearer
+  token, performs no TMS/LMS call, and makes no tenant-role decision.

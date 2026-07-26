@@ -50,8 +50,9 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates provide
 | 10 | OpenStack tenant binding and ownership APIs | Explicit domain/project create handlers with CMP-owned bindings | CMP can request domain/project creation without inventory inference |
 | 11 | Storage and provider catalog | Volume/snapshot, image, AZ, and flavor handlers | Storage/catalog operations converge and replay safely |
 | 12 | Expanded control-plane release | Cross-resource replay, compatibility, and real-cloud acceptance | Recovery and provider compatibility matrix passes |
+| 13 | Provider tenancy contract | Provider-owned credential resolution, project-owner normalization, authorization decision propagation | CPS authorizes tenant actions; OPS remains TMS/LMS-independent |
 
-Sprints 7–12 remain proposed until the CPS design delta is approved and joint
+Sprints 7–13 remain proposed until the CPS design delta is approved and joint
 Sprint Planning confirms contract readiness and capacity.
 
 ## Scrum artifacts
