@@ -133,7 +133,13 @@ async def resource_operation(
             resource, state = await asyncio.to_thread(_execute, connection, request)
             result = request.model_dump(mode="json") | {"state": state.value}
             if resource is not None:
-                result["resource"] = _resource_payload(request, resource, request.resource_type)
+                resource_payload = _resource_payload(request, resource, request.resource_type)
+                result["resource"] = resource_payload
+                provider_resource_id = getattr(resource, "id", None)
+                if provider_resource_id is None and isinstance(resource_payload, dict):
+                    provider_resource_id = resource_payload.get("provider_resource_id")
+                if provider_resource_id is not None:
+                    result["provider_resource_id"] = str(provider_resource_id)
             return HandlerSuccess(
                 result_messages=(
                     (OPERATION_COMPLETED, _event(command, result, "resource.operation.completed")),
