@@ -28,7 +28,7 @@ the corporate LAN, with explicit scope gates and normalized relationship results
 - [x] Implement optional floating-IP allocate/associate/release handlers.
 - [x] Normalize dependency conflicts, policy errors, and already-absent results.
 - [x] Add replay/redelivery and topology cleanup tests.
-- [ ] Run internal connectivity acceptance with a VM port.
+- [ ] Pass internal connectivity acceptance with a VM port (smoke test executed; provider path is not routable).
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -44,7 +44,7 @@ the corporate LAN, with explicit scope gates and normalized relationship results
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
 | Neutron policy differs by deployment | OPS | Capability-gate shared/external operations and normalize 403 | Open |
-| Catalog endpoints are unreachable from Compose | OPS | Validate private network endpoint separately; defer public acceptance | Open |
+| Provider network path is not routable from host/controller/compute | OPS | Add a bridged external network or provider-network dataplane before repeating the VM smoke test | Blocked |
 | Eventual consistency after port/interface mutation | OPS | Bounded polling and replay-safe relationship operations | Open |
 
 ## Review evidence
@@ -52,8 +52,8 @@ the corporate LAN, with explicit scope gates and normalized relationship results
 - Demo scenario: Neutron topology operations return normalized resources plus a LAN-reachable floating/provider-network address.
 - Test commands and results: OPS `358 passed, 24 skipped`; network focused tests pass; Ruff and targeted mypy pass.
 - CPS checksum: network operations map to the pinned generic resource-operation envelope.
-- Internal connectivity result: private topology handlers are tested; corporate-LAN smoke test is pending external-network reachability.
-- Known limitations: external network mapping, floating-IP association, and security-group ingress must be verified live.
+- Internal connectivity result: a live CirrOS VM reached `ACTIVE` on `provider` with `192.168.57.141`, but ping from host, controller, and compute returned `Destination Port Unreachable`; the VM was deleted successfully.
+- Known limitations: external network mapping, floating-IP association, and security-group ingress need a routable provider bridge before corporate-LAN SSH acceptance can pass.
 
 ## Retrospective actions
 
