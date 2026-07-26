@@ -23,6 +23,7 @@
 |---|---|---|---|
 | [OPS-1201](../tasks/sprint-13/OPS-1201-provider-project-contract.md) | Connection-only provider resolution and normalized project ownership | CPS-1201, CPS-1202 | Ready |
 | [OPS-1202](../tasks/sprint-13/OPS-1202-authorization-context.md) | Safe authorization context validation and replay behavior | CPS-1203, OPS-1201 | Ready |
+| OPS-1203 | Converge creator admin role on newly-created Keystone domain/project scopes | CPS-1201 | In progress |
 
 ## Execution sequence
 
@@ -38,6 +39,8 @@
 - Every normalized tenant resource includes its OpenStack project owner when the provider supplies one.
 - User commands without valid CPS authorization decision context fail before provider mutation.
 - OPS does not receive bearer tokens and does not call TMS or LMS.
+- Domain/project creation assigns the provider credential user the strongest
+  available administrative role at the created scope, idempotently.
 - Contract checksum, format, lint, typing, unit, integration, replay, redaction, and build gates pass.
 
 ## Risks and impediments

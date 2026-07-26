@@ -4,7 +4,11 @@ from uuid import uuid4
 import pytest
 from openstack import exceptions as os_exc
 
-from ops.application.handlers.resource_operations import _execute, _normalize_quota, _request
+from ops.application.handlers.resource_operations import (
+    _execute,
+    _normalize_quota,
+    _request,
+)
 from ops.contracts.messages.envelope import MessageEnvelope
 from ops.contracts.messages.resource_operations import (
     ResourceOperationRequest,
@@ -18,6 +22,7 @@ class Identity:
         self.created: list[dict[str, object]] = []
         self.existing = None
         self.updated: list[dict[str, object]] = []
+        self.assignments: list[dict[str, object]] = []
 
     def domains(self, **kwargs):
         return iter(()) if self.existing is None else iter((self.existing,))
@@ -26,7 +31,19 @@ class Identity:
         self.created.append(kwargs)
         return SimpleNamespace(id="d1", name=kwargs["name"])
 
+    def projects(self, **kwargs):
+        return iter(()) if self.existing is None else iter((self.existing,))
+
+    def create_project(self, **kwargs):
+        self.created.append(kwargs)
+        return SimpleNamespace(id="p1", name=kwargs["name"])
+
     def get_domain(self, value):
+        if self.existing is None:
+            raise RuntimeError(value)
+        return self.existing
+
+    def get_project(self, value):
         if self.existing is None:
             raise RuntimeError(value)
         return self.existing
@@ -34,6 +51,19 @@ class Identity:
     def update_domain(self, resource, **kwargs):
         self.updated.append(kwargs)
         return resource
+
+    def find_user(self, value, ignore_missing=True):
+        return SimpleNamespace(id="u1", name=value)
+
+    def roles(self):
+        return iter((SimpleNamespace(id="r1", name="admin"),))
+
+    def role_assignments(self, **kwargs):
+        return iter(self.assignments)
+
+    def create_role_assignment(self, **kwargs):
+        self.assignments.append(kwargs)
+        return SimpleNamespace(**kwargs)
 
 
 def _operation_request(
@@ -75,6 +105,30 @@ def test_domain_create_with_provider_id_is_replay_safe() -> None:
     assert state is ResourceOperationState.SUCCEEDED
     assert result.id == "d1"
     assert identity.created == []
+
+
+def test_domain_create_grants_creator_highest_role() -> None:
+    identity = Identity()
+    result, state = _execute(
+        SimpleNamespace(identity=identity),
+        _operation_request("domain", "create", {"name": "acme"}),
+        "admin",
+    )
+    assert state is ResourceOperationState.SUCCEEDED
+    assert result.id == "d1"
+    assert identity.assignments == [{"role": "r1", "user": "u1", "domain": "d1"}]
+
+
+def test_project_create_grants_creator_highest_role() -> None:
+    identity = Identity()
+    result, state = _execute(
+        SimpleNamespace(identity=identity),
+        _operation_request("project", "create", {"name": "cloud", "domain_id": "d1"}),
+        "admin",
+    )
+    assert state is ResourceOperationState.SUCCEEDED
+    assert result.id == "p1"
+    assert identity.assignments == [{"role": "r1", "user": "u1", "project": "p1"}]
 
 
 def test_domain_disable_updates_provider_resource_without_cmp_metadata() -> None:

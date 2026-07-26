@@ -106,6 +106,53 @@ def _resource_payload(
     return map_resource(resource_type, resource)
 
 
+def _highest_admin_role(identity: Any) -> Any:
+    """Select the provider's strongest administrative role deterministically."""
+    roles = list(identity.roles())
+    ranked = {
+        "admin": 100,
+        "cloud_admin": 90,
+        "administrator": 80,
+    }
+    candidates = [role for role in roles if str(getattr(role, "name", "")).lower() in ranked]
+    if not candidates:
+        raise ValueError("OpenStack provider has no administrative role")
+    return max(candidates, key=lambda role: ranked[str(role.name).lower()])
+
+
+def _ensure_creator_role(
+    identity: Any, resource_type: str, resource: Any, username: str
+) -> dict[str, str]:
+    """Grant the creating provider user admin at the newly-created scope."""
+    user = identity.find_user(username, ignore_missing=True)
+    if user is None:
+        raise ValueError(f"OpenStack provider user {username!r} was not found")
+    role = _highest_admin_role(identity)
+    scope_key = "domain" if resource_type == "domain" else "project"
+    assignment = {
+        "role": str(role.id),
+        "user": str(user.id),
+        scope_key: str(resource.id),
+    }
+    validator_name = f"validate_user_has_{scope_key}_role"
+    assigner_name = f"assign_{scope_key}_role_to_user"
+    validator = getattr(identity, validator_name, None)
+    assigner = getattr(identity, assigner_name, None)
+    if callable(validator) and callable(assigner):
+        if not validator(resource.id, user.id, role.id):
+            assigner(resource.id, user.id, role.id)
+    elif next(iter(identity.role_assignments(**assignment)), None) is None:
+        # Compatibility for proxy doubles and older SDK adapters.
+        identity.create_role_assignment(**assignment)
+    return {
+        "user_id": str(user.id),
+        "role_id": str(role.id),
+        "role_name": str(role.name),
+        "scope_type": scope_key,
+        "scope_id": str(resource.id),
+    }
+
+
 async def resource_operation(
     command: MessageEnvelope,
     _metadata: DeliveryMetadata,
@@ -134,7 +181,9 @@ async def resource_operation(
                         OPERATION_FAILED,
                     ),
                 )
-            resource, state = await asyncio.to_thread(_execute, connection, request)
+            resource, state = await asyncio.to_thread(
+                _execute, connection, request, resolution.username
+            )
             result = request.model_dump(mode="json") | {"state": state.value}
             if resource is not None:
                 resource_payload = _resource_payload(request, resource, request.resource_type)
@@ -184,7 +233,7 @@ async def resource_operation(
 
 
 def _execute(
-    connection: Any, request: ResourceOperationRequest
+    connection: Any, request: ResourceOperationRequest, creator_username: str | None = None
 ) -> tuple[Any | None, ResourceOperationState]:
     operation = request.operation.lower()
     resource_type = request.resource_type.lower().replace("identity.", "").replace("network.", "")
@@ -228,6 +277,8 @@ def _execute(
                     raise os_exc.ConflictException(
                         f"provider resource {provider_id} has a different name"
                     )
+                if creator_username:
+                    _ensure_creator_role(identity, resource_type, existing, creator_username)
                 return existing, ResourceOperationState.SUCCEEDED
             for existing in (
                 identity.domains(name=name)
@@ -238,7 +289,10 @@ def _execute(
                     raise os_exc.ConflictException(
                         "provider resource name is already used by an unbound object"
                     )
-            return creator(**provider_params), ResourceOperationState.SUCCEEDED
+            resource = creator(**provider_params)
+            if creator_username:
+                _ensure_creator_role(identity, resource_type, resource, creator_username)
+            return resource, ResourceOperationState.SUCCEEDED
         if not provider_id:
             raise ValueError("provider_resource_id is required")
         try:
