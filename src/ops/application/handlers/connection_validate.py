@@ -67,10 +67,7 @@ async def connection_validate(
     *,
     settings: Settings,
 ) -> HandlerSuccess | HandlerFailedResult | HandlerRetryableError:
-    if (
-        command.payload != {"validation_mode": "SAFE_READ_ONLY"}
-        or command.credential_reference is None
-    ):
+    if command.payload != {"validation_mode": "SAFE_READ_ONLY"}:
         return HandlerFailedResult(
             result_routing_key=OPERATION_FAILED,
             result_body=_failure(
@@ -84,9 +81,7 @@ async def connection_validate(
             ),
         )
     try:
-        resolution = await CredentialResolver(settings).resolve(
-            command.credential_reference, command.provider_connection_id
-        )
+        resolution = await CredentialResolver(settings).resolve_by_provider_id(command.provider_id)
     except CpsResolutionError as exc:
         if exc.retryable:
             return HandlerRetryableError(
@@ -104,7 +99,7 @@ async def connection_validate(
                 command,
                 CommonError(
                     code=exc.code,
-                    message="Credential reference is invalid",
+                    message="Provider is not available for resolution",
                     category=ErrorCategory.NOT_FOUND,
                     retryable=False,
                 ),

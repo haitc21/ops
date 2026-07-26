@@ -5,6 +5,13 @@ Current public model note: OPS consumes one `provider` aggregate from CPS.
 from earlier iterations and are not separate public business objects in new
 work.
 
+Restart baseline note: CPS and OPS operate independently. They do not integrate
+with TMS or BMS. A provider represents an entire OpenStack cluster; CPS supplies
+OPS with the encrypted highest-privilege admin credential and cluster connection
+metadata through the provider aggregate. Organization and workspace bindings are
+deferred future scope only. From Sprint 0 onward, planning and delivery
+prioritize standalone provider onboarding and provider-level validation.
+
 ## Epic OPS-E0 — Engineering foundation
 
 ### OPS-001 — Bootstrap a reproducible Python service
@@ -93,7 +100,7 @@ unless a future migration explicitly reopens them.
 
 ### OPS-205 — Single-endpoint provider onboarding support
 
-- **Sprint/Priority/Points:** 10 / Must / 8
+- **Sprint/Priority/Points:** 6 / Must / 8
 - **Depends on:** OPS-201..204
 - **Coordinates with:** CPS-207
 - **Acceptance:** OPS treats provider onboarding as one privileged provider
@@ -212,6 +219,9 @@ unless a future migration explicitly reopens them.
 
 ## Deferred backlog
 
+- Organization/workspace binding command handlers (`OPS-704`; canonical future
+  design:
+  `../../../cps/docs/superpowers/specs/2026-07-24-openstack-cmp-org-workspace-binding-spec.md`).
 - OpenStack notification/event bus integration.
 - Existing-volume boot mode.
 - Resize, rebuild, rescue, shelve, migration, and console operations.
@@ -226,13 +236,13 @@ unless a future migration explicitly reopens them.
 - **Acceptance:** pinned artifacts/checksum match CPS; malformed scope/owner
   combinations reject before provider access; existing fixtures remain valid.
 
-### OPS-702 — Effective connection-scope discovery
+### OPS-702 — Effective provider privilege scope discovery
 
 - **Sprint/Priority/Points:** 7 / Must / 8
 - **Depends on:** OPS-202, CPS-702
 - **Acceptance:** supported SDK behavior reports effective system/domain/project
-  scope and operation capabilities without exposing token/catalog or inferring
-  authority from username.
+  privilege scope and operation capabilities from the provider aggregate
+  without exposing token/catalog or inferring authority from username.
 
 ### OPS-703 — Domain/project collectors and mappers
 
@@ -241,18 +251,6 @@ unless a future migration explicitly reopens them.
 - **Acceptance:** paginated collectors emit safe typed identities; forbidden
   domain collection is explicit; project collection remains project-scope
   compatible; targeted NotFound alone emits tombstone.
-
-### OPS-704 — OpenStack domain/project create handlers
-
-- **Sprint/Priority/Points:** 10 / Must / 8
-- **Depends on:** OPS-702, OPS-703
-- **Coordinates with:** CPS-704
-- **Acceptance:** OPS creates OpenStack domains and projects only from an
-  explicit CPS create command; `org_id` is required for domain create and
-  `org_id + workspace_id` are required for project create; name-only matches
-  never auto-adopt an unbound provider object; duplicate delivery is
-  idempotent; scope insufficiency and provider collisions normalize to stable
-  safe errors.
 
 ## Epic OPS-E8 — Identity lifecycle and quotas
 

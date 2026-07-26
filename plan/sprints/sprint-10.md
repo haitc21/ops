@@ -4,7 +4,8 @@
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 8 OPS points  
 **Sprint Goal:** OPS can execute explicit OpenStack domain/project create
-commands from CPS without adopting provider objects implicitly from inventory.
+commands from CPS keyed by `provider_id` without adopting provider objects
+implicitly from inventory.
 
 **Canonical CPS design:**
 `../../../cps/docs/superpowers/specs/2026-07-24-openstack-cmp-org-workspace-binding-spec.md`
@@ -17,7 +18,8 @@ commands from CPS without adopting provider objects implicitly from inventory.
 
 ## Delivery tasks
 
-- [ ] Confirm CPS contract/checksum readiness for binding create commands.
+- [ ] Confirm CPS contract/checksum readiness for binding create commands keyed
+  by `provider_id`.
 - [ ] Add failing handler and replay tests for domain and project creation.
 - [ ] Implement the smallest OpenStackSDK vertical slice for create-domain.
 - [ ] Implement the project create handler with domain dependency validation.
@@ -27,14 +29,17 @@ commands from CPS without adopting provider objects implicitly from inventory.
 
 ## Acceptance
 
-- OPS creates domains only from an explicit CPS create command.
-- OPS creates projects only when CPS supplies `org_id + workspace_id` and the
-  matching domain binding context.
+- OPS creates domains only from an explicit CPS create command that includes
+  `provider_id`.
+- OPS creates projects only when CPS supplies `provider_id`, `org_id +
+  workspace_id`, and the matching domain binding context.
+- OPS resolves the provider aggregate (encrypted credentials and connection
+  metadata) from CPS; no separate credential or connection object crosses the
+  handler boundary.
 - Name-only matches never auto-adopt an unbound provider object.
 - Duplicate delivery is idempotent and replay-safe.
 - Scope insufficiency and provider collisions normalize to stable safe errors.
-- No provider-side object, SDK object, or credential escapes the handler
-  boundary.
+- No provider-side object or SDK object escapes the handler boundary.
 
 ## Risks and impediments
 

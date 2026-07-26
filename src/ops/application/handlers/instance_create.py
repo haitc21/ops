@@ -127,13 +127,15 @@ async def instance_create(
         return HandlerFailedResult()
     if payload.action is not InstanceAction.CREATE or command.credential_reference is None:
         return HandlerFailedResult()
+    request = payload.create
+    if request is None:
+        return HandlerFailedResult()
     try:
         resolution = await CredentialResolver(settings).resolve(
             command.credential_reference, command.provider_connection_id
         )
         with openstack_connection(resolution, settings) as connection:
             compute = connection.compute
-            request = payload.create
             managed_key_name: str | None = None
             if request.ssh_public_key and not request.key_name:
                 managed_key_name = f"cmp-{command.operation_id}"
@@ -209,6 +211,8 @@ async def instance_create(
                         floating_network_id=request.floating_network_provider_resource_id,
                         description=marker,
                     )
+                if floating is None:
+                    raise RuntimeError("floating IP allocation did not return a resource")
                 if not getattr(floating, "port_id", None):
                     await asyncio.to_thread(
                         compute.add_floating_ip_to_server,
@@ -217,6 +221,8 @@ async def instance_create(
                     )
                 floating_ip = str(floating.floating_ip_address)
                 floating_ip_id = str(floating.id)
+            ssh_hosts = _ssh_hosts(instance)
+            access_hosts = ([floating_ip] if floating_ip is not None else []) + ssh_hosts
             result = {
                 "action": InstanceAction.CREATE.value,
                 "instance": map_resource("instance", instance),
@@ -227,8 +233,8 @@ async def instance_create(
                         "username": request.ssh_username,
                         "port": 22,
                         "key_name": managed_key_name or request.key_name,
-                        "host": floating_ip or (_ssh_hosts(instance) or [None])[0],
-                        "hosts": ([floating_ip] if floating_ip else []) + _ssh_hosts(instance),
+                        "host": floating_ip or (ssh_hosts[0] if ssh_hosts else None),
+                        "hosts": access_hosts,
                         "floating_ip_id": floating_ip_id,
                     }
                 },

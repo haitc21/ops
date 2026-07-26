@@ -44,6 +44,24 @@ class CredentialResolver:
     ) -> CredentialResolution:
         base_url = self.settings.require_cps_base_url.rstrip("/")
         url = f"{base_url}/internal/v1/credentials/{credential_reference}"
+        return await self._fetch_resolution(
+            url,
+            params={"provider_connection_id": str(connection_id)},
+            invalid_code="CREDENTIAL_REFERENCE_INVALID",
+        )
+
+    async def resolve_by_provider_id(self, provider_id: UUID) -> CredentialResolution:
+        base_url = self.settings.require_cps_base_url.rstrip("/")
+        url = f"{base_url}/internal/v1/providers/{provider_id}/resolution"
+        return await self._fetch_resolution(url, invalid_code="PROVIDER_NOT_FOUND")
+
+    async def _fetch_resolution(
+        self,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        invalid_code: str,
+    ) -> CredentialResolution:
         timeout = httpx.Timeout(
             connect=5.0,
             read=float(self.settings.cps_timeout_seconds),
@@ -53,9 +71,7 @@ class CredentialResolver:
         response: httpx.Response | None = None
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-                response = await client.get(
-                    url, params={"provider_connection_id": str(connection_id)}
-                )
+                response = await client.get(url, params=params)
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
             raise CpsResolutionError("CPS_UNAVAILABLE", retryable=True) from exc
         if len(response.content) > MAX_RESOLUTION_BYTES:
@@ -63,7 +79,7 @@ class CredentialResolver:
         if response.status_code >= 500:
             raise CpsResolutionError(_error_code(response), retryable=True)
         if response.status_code in {404, 409}:
-            raise CpsResolutionError("CREDENTIAL_REFERENCE_INVALID", retryable=False)
+            raise CpsResolutionError(invalid_code, retryable=False)
         if response.status_code != 200:
             raise CpsResolutionError("CPS_UNAVAILABLE", retryable=False)
         try:

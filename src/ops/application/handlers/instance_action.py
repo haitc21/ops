@@ -152,10 +152,9 @@ async def instance_action(
                 managed_keypair = metadata.get("cmp_keypair_name")
                 managed_floating_ips: list[Any] = []
                 network = getattr(connection, "network", None)
-                has_network = network is not None and (
+                if network is not None and (
                     not hasattr(connection, "has_service") or connection.has_service("network")
-                )
-                if has_network:
+                ):
                     operation_marker = f"cmp-operation-{metadata.get('cmp_operation_id', '')}"
                     for floating in await asyncio.to_thread(lambda: list(network.ips())):
                         if getattr(floating, "description", None) == operation_marker:
@@ -166,8 +165,9 @@ async def instance_action(
                                 floating.floating_ip_address,
                             )
                 await asyncio.to_thread(compute.delete_server, server)
-                for floating in managed_floating_ips:
-                    await asyncio.to_thread(network.delete_ip, floating.id)
+                if network is not None:
+                    for floating in managed_floating_ips:
+                        await asyncio.to_thread(network.delete_ip, floating.id)
                 if managed_keypair:
                     await asyncio.to_thread(
                         compute.delete_keypair, managed_keypair, ignore_missing=True
