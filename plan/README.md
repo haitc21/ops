@@ -51,8 +51,9 @@ Deliver OPS as a stateless, replay-safe OpenStack adapter that validates provide
 | 11 | Storage and provider catalog | Volume/snapshot, image, AZ, and flavor handlers | Storage/catalog operations converge and replay safely |
 | 12 | Expanded control-plane release | Cross-resource replay, compatibility, and real-cloud acceptance | Recovery and provider compatibility matrix passes |
 | 13 | Provider tenancy contract | Provider-owned credential resolution, project-owner normalization, authorization decision propagation | CPS authorizes tenant actions; OPS remains TMS/LMS-independent |
+| 14 | VM-create terminal convergence | Bounded Nova convergence, replay-safe discovery, reliable terminal publication, and reconciliation | An ACTIVE Nova server always produces a deterministic CPS terminal result across timeout, restart, and redelivery |
 
-Sprints 7–13 remain proposed until the CPS design delta is approved and joint
+Sprints 7–14 remain proposed until the CPS design delta is approved and joint
 Sprint Planning confirms contract readiness and capacity.
 
 ## Scrum artifacts

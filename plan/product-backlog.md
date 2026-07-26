@@ -217,6 +217,42 @@ unless a future migration explicitly reopens them.
 - **Depends on:** OPS-501..504 and paired CPS stories
 - **Acceptance:** approved eight-scenario suite passes; discovered service/API versions and capabilities recorded; both boot modes work; direct drift converges; restart/redelivery produces no duplicate VM or lost terminal result.
 
+## Epic OPS-E13 — VM-create terminal convergence
+
+### OPS-1301 — Bounded Nova convergence and enrichment
+
+- **Sprint/Priority/Points:** 14 / Must / 8
+- **Depends on:** OPS-406
+- **Acceptance:** SDK requests and the whole handler have enforceable deadlines;
+  ACTIVE/SHUTOFF completes creation; ERROR fails; optional port/volume
+  enrichment cannot strand an operation; required floating-IP failure remains
+  terminal and explicit.
+
+### OPS-1302 — Replay-safe server discovery
+
+- **Sprint/Priority/Points:** 14 / Must / 5
+- **Depends on:** OPS-401, OPS-501
+- **Acceptance:** redelivery and restart find the existing server by persisted
+  ID or exact `cmp_operation_id` metadata; display-name lookup is not used as
+  the operation marker; duplicate Nova creation is prevented.
+
+### OPS-1303 — Reliable terminal result publication
+
+- **Sprint/Priority/Points:** 14 / Must / 8
+- **Depends on:** OPS-102, OPS-1301, OPS-1302, CPS-1301
+- **Acceptance:** progress carries server identity; terminal events are
+  deterministic and recover independently after partial publication; command
+  acknowledgement follows confirmed required publication; redelivery does not
+  repeat provider mutation.
+
+### OPS-1304 — VM-create reconciliation handler
+
+- **Sprint/Priority/Points:** 14 / Must / 5
+- **Depends on:** OPS-1302, OPS-1303, CPS-1302
+- **Acceptance:** a bounded read-only handler reports ACTIVE/SHUTOFF, ERROR,
+  confirmed absence, or transient unavailability; it never calls
+  `create_server`; replay and concurrent requests are idempotent.
+
 ## Deferred backlog
 
 - Organization/workspace binding command handlers (`OPS-704`; canonical future
