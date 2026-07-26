@@ -42,7 +42,7 @@ operations with explicit scope authorization and replay-safe events.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Provider catalog endpoints are not routable from Compose | OPS | Add endpoint preflight before real-cloud acceptance | Open |
+| Provider catalog endpoints are not routable from Compose | OPS | Host routing and provider endpoint preflight are now configured and verified | Resolved |
 | Keystone role/policy varies by deployment | OPS | Normalize authorization failures and capability reasons | Open |
 | Service quota APIs vary by OpenStack release | OPS | Use adapter matrix and partial-service result model | Open |
 

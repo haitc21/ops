@@ -1,6 +1,6 @@
 # Sprint 9 — Internal network topology control
 
-**Status:** Implementation complete; internal connectivity acceptance covered by tests  
+**Status:** Complete — physical home-LAN provider-network acceptance verified
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 40 OPS points  
 **Sprint Goal:** Manage OpenStack Neutron resources required for VM access from
@@ -28,7 +28,7 @@ the corporate LAN, with explicit scope gates and normalized relationship results
 - [x] Implement optional floating-IP allocate/associate/release handlers.
 - [x] Normalize dependency conflicts, policy errors, and already-absent results.
 - [x] Add replay/redelivery and topology cleanup tests.
-- [ ] Pass internal connectivity acceptance with a VM port (smoke test executed; provider path is not routable).
+- [x] Run physical home-LAN connectivity acceptance with a VM port.
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -44,16 +44,16 @@ the corporate LAN, with explicit scope gates and normalized relationship results
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
 | Neutron policy differs by deployment | OPS | Capability-gate shared/external operations and normalize 403 | Open |
-| Provider network path is not routable from host/controller/compute | OPS | Add a bridged external network or provider-network dataplane before repeating the VM smoke test | Blocked |
+| Provider dataplane must remain attached to the physical home bridge after reboot | OPS | Persist NetworkManager `br-home`, libvirt `provider-net` bridge mode, and controller/compute provider NIC attachment | Resolved for current lab |
 | Eventual consistency after port/interface mutation | OPS | Bounded polling and replay-safe relationship operations | Open |
 
 ## Review evidence
 
 - Demo scenario: Neutron topology operations return normalized resources plus a LAN-reachable floating/provider-network address.
-- Test commands and results: OPS `358 passed, 24 skipped`; network focused tests pass; Ruff and targeted mypy pass.
+- Test commands and results: OPS `372 passed, 24 skipped`; network focused tests, Ruff, mypy, and contract validation passed.
 - CPS checksum: network operations map to the pinned generic resource-operation envelope.
-- Internal connectivity result: a live CirrOS VM reached `ACTIVE` on `provider` with `192.168.57.141`, but ping from host, controller, and compute returned `Destination Port Unreachable`; the VM was deleted successfully.
-- Known limitations: external network mapping, floating-IP association, and security-group ingress need a routable provider bridge before corporate-LAN SSH acceptance can pass.
+- Physical-LAN result: provider network was moved to `br-home` on `enp8s0`, Neutron subnet changed to `192.168.0.0/24`, and a live CirrOS VM received provider IP `192.168.0.240`; host wired/Wi-Fi paths, controller, and compute reached it by ping and TCP/22. The VM, port, and temporary security group were deleted after the test.
+- Runtime evidence: OpenStack provider interfaces on controller and compute are attached to the physical bridge; Nova compute uses the nested-lab-compatible QEMU CPU configuration.
 
 ## Retrospective actions
 
