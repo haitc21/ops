@@ -190,16 +190,26 @@ def _execute(
         creator = getattr(identity, f"create_{resource_type}")
         if operation == "create":
             name = str(params["name"])
-            existing = next(
-                iter(
-                    identity.domains(name=name)
-                    if resource_type == "domain"
-                    else identity.projects(name=name)
-                ),
-                None,
-            )
-            if existing is not None:
+            # A display-name match is not an ownership proof.  CPS owns the
+            # binding and must supply the provider resource ID for replay of
+            # an already-created object; inventory/name lookup must never
+            # silently adopt an unbound Keystone object.
+            if provider_id:
+                existing = getter(provider_id)
+                if str(getattr(existing, "name", "")) != name:
+                    raise os_exc.ConflictException(
+                        f"provider resource {provider_id} has a different name"
+                    )
                 return existing, ResourceOperationState.SUCCEEDED
+            for existing in (
+                identity.domains(name=name)
+                if resource_type == "domain"
+                else identity.projects(name=name)
+            ):
+                if existing is not None:
+                    raise os_exc.ConflictException(
+                        "provider resource name is already used by an unbound object"
+                    )
             return creator(**params), ResourceOperationState.SUCCEEDED
         if not provider_id:
             raise ValueError("provider_resource_id is required")

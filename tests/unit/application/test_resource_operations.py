@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from openstack import exceptions as os_exc
 
 from ops.application.handlers.resource_operations import _execute, _normalize_quota, _request
 from ops.contracts.messages.envelope import MessageEnvelope
@@ -15,16 +16,19 @@ from ops.contracts.messages.resource_operations import (
 class Identity:
     def __init__(self) -> None:
         self.created: list[dict[str, object]] = []
+        self.existing = None
 
     def domains(self, **kwargs):
-        return iter(())
+        return iter(()) if self.existing is None else iter((self.existing,))
 
     def create_domain(self, **kwargs):
         self.created.append(kwargs)
         return SimpleNamespace(id="d1", name=kwargs["name"])
 
     def get_domain(self, value):
-        raise RuntimeError(value)
+        if self.existing is None:
+            raise RuntimeError(value)
+        return self.existing
 
 
 def _operation_request(
@@ -45,14 +49,27 @@ def _operation_request(
     )
 
 
-def test_domain_create_is_provider_idempotency_seeded() -> None:
+def test_domain_create_without_binding_rejects_name_collision() -> None:
     identity = Identity()
+    identity.existing = SimpleNamespace(id="unbound", name="acme")
+    with pytest.raises(os_exc.ConflictException, match="unbound object"):
+        _execute(
+            SimpleNamespace(identity=identity),
+            _operation_request("domain", "create", {"name": "acme"}),
+        )
+    assert identity.created == []
+
+
+def test_domain_create_with_provider_id_is_replay_safe() -> None:
+    identity = Identity()
+    identity.existing = SimpleNamespace(id="d1", name="acme")
     result, state = _execute(
-        SimpleNamespace(identity=identity), _operation_request("domain", "create", {"name": "acme"})
+        SimpleNamespace(identity=identity),
+        _operation_request("domain", "create", {"name": "acme"}, provider_resource_id="d1"),
     )
     assert state is ResourceOperationState.SUCCEEDED
     assert result.id == "d1"
-    assert identity.created == [{"name": "acme"}]
+    assert identity.created == []
 
 
 def test_quota_unlimited_normalizes_to_none() -> None:
@@ -75,7 +92,7 @@ def test_secret_parameters_are_rejected() -> None:
                 "resource_type": "project",
                 "operation": "create",
                 "required_scope": "DOMAIN",
-                "parameters": {"name": "safe", "password": "never"},
+                "parameters": {"name": "safe", "password": "never"},  # pragma: allowlist secret
             },
         }
     )
