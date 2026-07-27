@@ -30,6 +30,30 @@ def test_instance_mapper_contains_only_contract_safe_scalars_and_collections() -
     assert "password" not in repr(item).lower()
 
 
+def test_catalog_tag_is_normalized_to_explicit_approval_flag() -> None:
+    approved = map_resource(
+        "image",
+        SimpleNamespace(id="image-1", name="ubuntu", tags=["cmp-catalog-approved=true"]),
+    )
+    rejected = map_resource(
+        "image", SimpleNamespace(id="image-2", name="private", tags=["team-only"])
+    )
+    assert approved["attributes"]["catalog_approved"] is True
+    assert rejected["attributes"]["catalog_approved"] is False
+
+
+def test_glance_property_is_normalized_to_catalog_approval() -> None:
+    item = map_resource(
+        "image",
+        SimpleNamespace(
+            id="image-3",
+            name="ubuntu",
+            properties={"cmp-catalog-approved": "true"},
+        ),
+    )
+    assert item["attributes"]["catalog_approved"] is True
+
+
 def test_mapper_sanitizes_nested_sdk_resources_and_drops_secret_fields() -> None:
     nested_resource = SimpleNamespace(id="port-1", name="should-not-be-needed")
     sensitive_field = "sec" + "ret"

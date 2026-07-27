@@ -242,6 +242,18 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         sanitized = _sanitize_value(value, key=key)
         if sanitized is not _DROP:
             attributes[key] = sanitized
+    tags = _value(resource, "tags")
+    if isinstance(tags, list | tuple | set | frozenset):
+        normalized_tags = [str(tag) for tag in tags if tag is not None]
+        attributes["tags"] = normalized_tags[:64]
+        attributes["catalog_approved"] = "cmp-catalog-approved=true" in {
+            tag.lower() for tag in normalized_tags
+        }
+    metadata = _value(resource, "metadata") or _value(resource, "properties")
+    if isinstance(metadata, Mapping):
+        approval = metadata.get("cmp-catalog-approved")
+        if isinstance(approval, str):
+            attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
     item["attributes"] = attributes
     return item
 
