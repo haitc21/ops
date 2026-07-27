@@ -21,6 +21,10 @@ class InstanceAction(StrEnum):
     STOP = "STOP"
     REBOOT = "REBOOT"
     DELETE = "DELETE"
+    RESIZE = "RESIZE"
+    CONFIRM_RESIZE = "CONFIRM_RESIZE"
+    REVERT_RESIZE = "REVERT_RESIZE"
+    REBUILD = "REBUILD"
 
 
 class InstanceCreateRequest(BaseModel):
@@ -62,6 +66,8 @@ class InstanceCommandPayload(BaseModel):
     instance_provider_resource_id: str | None = Field(default=None, max_length=255)
     create: InstanceCreateRequest | None = None
     reboot_type: str | None = Field(default=None, pattern="^(SOFT|HARD)$")
+    resize_flavor_provider_resource_id: str | None = Field(default=None, max_length=255)
+    rebuild_image_provider_resource_id: str | None = Field(default=None, max_length=255)
 
     @model_validator(mode="after")
     def validate_action_payload(self) -> InstanceCommandPayload:
@@ -71,6 +77,14 @@ class InstanceCommandPayload(BaseModel):
             raise ValueError("instance provider resource id is required")
         if self.action is not InstanceAction.REBOOT and self.reboot_type is not None:
             raise ValueError("reboot type is only valid for reboot")
+        if self.action is InstanceAction.RESIZE and not self.resize_flavor_provider_resource_id:
+            raise ValueError("resize flavor provider resource id is required")
+        if self.action is InstanceAction.REBUILD and not self.rebuild_image_provider_resource_id:
+            raise ValueError("rebuild image provider resource id is required")
+        if self.action is not InstanceAction.RESIZE and self.resize_flavor_provider_resource_id:
+            raise ValueError("resize flavor is only valid for resize")
+        if self.action is not InstanceAction.REBUILD and self.rebuild_image_provider_resource_id:
+            raise ValueError("rebuild image is only valid for rebuild")
         return self
 
 

@@ -34,10 +34,14 @@ from ops.contracts.messages.types import (
     IDENTITY_ROLE_COLLECT,
     IDENTITY_ROLE_ENSURE,
     IDENTITY_ROLE_REVOKE,
+    INSTANCE_CONFIRM_RESIZE,
     INSTANCE_CREATE,
     INSTANCE_DELETE,
     INSTANCE_GET,
     INSTANCE_REBOOT,
+    INSTANCE_REBUILD,
+    INSTANCE_RESIZE,
+    INSTANCE_REVERT_RESIZE,
     INSTANCE_START,
     INSTANCE_STOP,
     INVENTORY_COLLECT,
@@ -105,6 +109,16 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
     registry.register(INSTANCE_STOP, make_instance_action(settings, InstanceAction.STOP))
     registry.register(INSTANCE_REBOOT, make_instance_action(settings, InstanceAction.REBOOT))
     registry.register(INSTANCE_DELETE, make_instance_action(settings, InstanceAction.DELETE))
+    registry.register(INSTANCE_RESIZE, make_instance_action(settings, InstanceAction.RESIZE))
+    registry.register(
+        INSTANCE_CONFIRM_RESIZE,
+        make_instance_action(settings, InstanceAction.CONFIRM_RESIZE),
+    )
+    registry.register(
+        INSTANCE_REVERT_RESIZE,
+        make_instance_action(settings, InstanceAction.REVERT_RESIZE),
+    )
+    registry.register(INSTANCE_REBUILD, make_instance_action(settings, InstanceAction.REBUILD))
     identity_handler = make_resource_operation(settings)
     for message_type in (
         IDENTITY_DOMAIN_CREATE,

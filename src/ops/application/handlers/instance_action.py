@@ -145,6 +145,28 @@ async def instance_action(
                 await asyncio.to_thread(
                     compute.reboot_server, server, reboot_type=payload.reboot_type or "SOFT"
                 )
+            elif expected_action is InstanceAction.RESIZE:
+                flavor_id = payload.resize_flavor_provider_resource_id
+                if flavor_id is None:
+                    return HandlerFailedResult()
+                await asyncio.to_thread(
+                    compute.resize_server,
+                    server,
+                    flavor_id,
+                )
+            elif expected_action is InstanceAction.CONFIRM_RESIZE:
+                await asyncio.to_thread(compute.confirm_resize_server, server)  # type: ignore[attr-defined]
+            elif expected_action is InstanceAction.REVERT_RESIZE:
+                await asyncio.to_thread(compute.revert_resize_server, server)  # type: ignore[attr-defined]
+            elif expected_action is InstanceAction.REBUILD:
+                image_id = payload.rebuild_image_provider_resource_id
+                if image_id is None:
+                    return HandlerFailedResult()
+                await asyncio.to_thread(
+                    compute.rebuild_server,
+                    server,
+                    image=image_id,
+                )
             elif expected_action is InstanceAction.DELETE:
                 metadata = getattr(server, "metadata", {}) or {}
                 managed_keypair = metadata.get("cmp_keypair_name")
@@ -185,7 +207,10 @@ async def instance_action(
                     "attributes": {},
                 }
             else:
-                target = "SHUTOFF" if expected_action is InstanceAction.STOP else "ACTIVE"
+                if expected_action is InstanceAction.RESIZE:
+                    target = "VERIFY_RESIZE"
+                else:
+                    target = "SHUTOFF" if expected_action is InstanceAction.STOP else "ACTIVE"
                 server = await wait_for_state(
                     lambda: asyncio.to_thread(compute.get_server, provider_id),
                     config=WaiterConfig(target_states=frozenset({target})),
