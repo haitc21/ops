@@ -9,6 +9,8 @@ from typing import Any
 from keystoneauth1 import exceptions as ks_exc
 from openstack import exceptions as os_exc
 
+from ops.openstack.scope import discover_effective_scope
+
 COLLECTIONS = (
     "region",
     "domain",
@@ -24,6 +26,7 @@ COLLECTIONS = (
     "floating_ip",
     "volume",
     "volume-snapshot",
+    "keypair",
     "instance",
 )
 
@@ -39,6 +42,8 @@ _SENSITIVE_KEY_PARTS = (
 
 
 def _value(resource: Any, name: str, default: Any = None) -> Any:
+    if isinstance(resource, Mapping):
+        return resource.get(name, default)
     value = getattr(resource, name, default)
     return default if value is None else value
 
@@ -152,6 +157,10 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
         if project_id is not None:
             item["project_provider_resource_id"] = project_id
+    if resource_type == "keypair":
+        project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
+        if project_id is not None:
+            item["project_provider_resource_id"] = project_id
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),
@@ -210,6 +219,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         ),
         "snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
         "volume-snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
+        "keypair": ("project_id", "fingerprint", "type", "public_key"),
         "instance": (
             "power_state",
             "flavor",
@@ -254,12 +264,18 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
         "volume": ("block_storage", "volumes"),
         "snapshot": ("block_storage", "snapshots"),
         "volume-snapshot": ("block_storage", "snapshots"),
+        "keypair": ("compute", "keypairs"),
         "instance": ("compute", "servers"),
     }
     service, method_name = proxy_name[resource_type]
     proxy = getattr(connection, service)
     resources: Iterable[Any] = getattr(proxy, method_name)()
     mapped = [map_resource(resource_type, resource) for resource in resources]
+    if resource_type == "keypair":
+        project_id = discover_effective_scope(connection).get("project_id")
+        if project_id:
+            for item in mapped:
+                item.setdefault("project_provider_resource_id", project_id)
     # Provider pagination/order is not a contract. Stable ordering keeps
     # redelivery checksums equivalent even when Keystone returns a different
     # page order.
@@ -285,6 +301,7 @@ def collect_targeted_resource(
         "volume": ("block_storage", "get_volume"),
         "snapshot": ("block_storage", "get_snapshot"),
         "volume-snapshot": ("block_storage", "get_snapshot"),
+        "keypair": ("compute", "get_keypair"),
         "instance": ("compute", "get_server"),
     }[resource_type]
     proxy = getattr(connection, getter[0])

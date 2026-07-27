@@ -99,6 +99,8 @@ def _scope_allowed(connection: Any, required: str) -> bool:
 def _resource_payload(
     request: ResourceOperationRequest, resource: Any, resource_type: str
 ) -> dict[str, Any]:
+    if resource_type.lower() == "keypair":
+        return map_resource(resource_type, resource)
     if isinstance(resource, dict):
         return resource
     if isinstance(resource, list):
@@ -252,6 +254,8 @@ def _execute(
         return _execute_volume_attachment(connection, operation, params)
     if resource_type == "snapshot":
         return _execute_snapshot(connection, operation, provider_id, params)
+    if resource_type == "keypair":
+        return _execute_keypair(connection, operation, provider_id, params)
     if resource_type in {
         "network",
         "subnet",
@@ -563,6 +567,71 @@ def _get_snapshot(proxy: Any, provider_id: str) -> Any:
     if not callable(getter):
         raise ValueError("snapshot getter unsupported")
     return getter(provider_id)
+
+
+def _validate_public_key(public_key: Any) -> str:
+    if not isinstance(public_key, str) or not 32 <= len(public_key) <= 16384:
+        raise ValueError("public key must be between 32 and 16384 characters")
+    lowered = public_key.lower()
+    if "private key" in lowered or "begin openssh private key" in lowered:
+        raise ValueError("PRIVATE_KEY_MATERIAL_REJECTED")
+    if not lowered.startswith(("ssh-rsa ", "ssh-ed25519 ", "ecdsa-sha2-", "sk-ssh-")):
+        raise ValueError("unsupported public key format")
+    return public_key
+
+
+def _execute_keypair(
+    connection: Any,
+    operation: str,
+    provider_id: str | None,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Manage Nova keypairs using public material only."""
+    compute = getattr(connection, "compute", None)
+    if compute is None:
+        raise ValueError("compute service is unavailable")
+    name = params.get("name")
+    if operation in {"create", "import", "ensure"}:
+        if not name:
+            raise ValueError("keypair create requires name")
+        requested_key = _validate_public_key(params.get("public_key"))
+        existing = compute.find_keypair(name, ignore_missing=True)
+        if existing is not None:
+            _keypair_owner_check(connection, params, existing)
+            if operation == "ensure":
+                return existing, ResourceOperationState.SUCCEEDED
+            existing_key = getattr(existing, "public_key", None)
+            if existing_key and str(existing_key).strip() == requested_key.strip():
+                return existing, ResourceOperationState.SUCCEEDED
+            raise ValueError("KEYPAIR_NAME_CONFLICT")
+        created = compute.create_keypair(name=name, public_key=requested_key)
+        _keypair_owner_check(connection, params, created)
+        return created, ResourceOperationState.SUCCEEDED
+    if not provider_id:
+        raise ValueError(f"keypair {operation} requires provider_resource_id")
+    try:
+        existing = compute.get_keypair(provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+        if operation == "delete":
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+    _keypair_owner_check(connection, params, existing)
+    if operation == "delete":
+        compute.delete_keypair(existing, ignore_missing=True)
+        return None, ResourceOperationState.SUCCEEDED
+    raise ValueError(f"unsupported keypair operation: {operation}")
+
+
+def _keypair_owner_check(connection: Any, params: dict[str, Any], resource: Any) -> None:
+    effective_project = discover_effective_scope(connection).get("project_id")
+    requested_project = params.get("project_id") or params.get("project_provider_resource_id")
+    resource_project = getattr(resource, "project_id", None) or getattr(resource, "tenant_id", None)
+    if effective_project and requested_project and str(effective_project) != str(requested_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if effective_project and resource_project and str(effective_project) != str(resource_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if requested_project and resource_project and str(requested_project) != str(resource_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
 
 
 def _snapshot_owner_check(connection: Any, params: dict[str, Any], resource: Any) -> None:

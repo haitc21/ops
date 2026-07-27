@@ -149,6 +149,28 @@ def test_targeted_collector_uses_resource_getter() -> None:
     )
 
 
+def test_keypair_inventory_is_project_owned_and_public_only() -> None:
+    connection = SimpleNamespace(
+        compute=SimpleNamespace(
+            keypairs=lambda: [
+                {
+                    "id": "key-1",
+                    "name": "cmp-key",
+                    "fingerprint": "fp-1",
+                    "type": "ssh-ed25519",
+                    "public_key": "ssh-ed25519 AAA",
+                    "private_key": "should-drop",  # pragma: allowlist secret
+                }
+            ]
+        ),
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="project-1")),
+    )
+    item = collect_resources(connection, "keypair")[0]
+    assert item["project_provider_resource_id"] == "project-1"
+    assert item["attributes"]["public_key"] == "ssh-ed25519 AAA"
+    assert "private_key" not in repr(item)
+
+
 def test_tombstone_batch_is_contract_valid() -> None:
     command = MessageEnvelope.model_validate(
         {

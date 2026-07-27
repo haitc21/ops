@@ -42,6 +42,8 @@ from ops.contracts.messages.types import (
     INSTANCE_STOP,
     INVENTORY_COLLECT,
     INVENTORY_REFRESH,
+    KEYPAIR_DELETE,
+    KEYPAIR_IMPORT,
     NETWORK_CREATE,
     NETWORK_DELETE,
     NETWORK_UPDATE,
@@ -147,6 +149,8 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
         SNAPSHOT_CREATE,
         SNAPSHOT_UPDATE,
         SNAPSHOT_DELETE,
+        KEYPAIR_IMPORT,
+        KEYPAIR_DELETE,
     ):
         registry.register(message_type, identity_handler)
     registry.freeze()

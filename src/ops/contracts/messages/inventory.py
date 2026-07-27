@@ -28,6 +28,7 @@ class InventoryResourceType(StrEnum):
     FLOATING_IP = "floating_ip"
     VOLUME = "volume"
     SNAPSHOT = "volume-snapshot"
+    KEYPAIR = "keypair"
 
 
 class InventoryCollectionStatus(StrEnum):
