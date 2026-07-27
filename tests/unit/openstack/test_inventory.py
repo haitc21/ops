@@ -201,3 +201,37 @@ def test_volume_mapper_emits_typed_project_and_bounded_attachment_summary() -> N
     assert item["volume_type_provider_resource_id"] == "type-1"
     assert item["metadata"] == {"tier": "gold"}
     assert item["attachments"] == [{"server_id": "server-1", "device": "/dev/vdb"}]
+
+
+def test_snapshot_mapper_emits_project_volume_and_metadata_fields() -> None:
+    resource = SimpleNamespace(
+        id="snapshot-1",
+        name="before-upgrade",
+        status="available",
+        project_id="project-1",
+        volume_id="volume-1",
+        size=20,
+        description="safe checkpoint",
+        metadata={"purpose": "release"},
+    )
+
+    item = map_resource("snapshot", resource)
+
+    assert item["provider_resource_id"] == "snapshot-1"
+    assert item["attributes"] == {
+        "project_id": "project-1",
+        "volume_id": "volume-1",
+        "size": 20,
+        "description": "safe checkpoint",
+        "metadata": {"purpose": "release"},
+    }
+
+
+def test_snapshot_collection_uses_block_storage_proxy() -> None:
+    connection = SimpleNamespace(
+        block_storage=SimpleNamespace(
+            snapshots=lambda: [SimpleNamespace(id="snapshot-2", name="later", status="available")]
+        )
+    )
+
+    assert collect_resources(connection, "snapshot")[0]["provider_resource_id"] == "snapshot-2"

@@ -60,6 +60,9 @@ from ops.contracts.messages.types import (
     SECURITY_GROUP_RULE_CREATE,
     SECURITY_GROUP_RULE_DELETE,
     SECURITY_GROUP_UPDATE,
+    SNAPSHOT_CREATE,
+    SNAPSHOT_DELETE,
+    SNAPSHOT_UPDATE,
     SUBNET_CREATE,
     SUBNET_DELETE,
     SUBNET_UPDATE,
@@ -141,6 +144,9 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
         VOLUME_DELETE,
         VOLUME_ATTACH,
         VOLUME_DETACH,
+        SNAPSHOT_CREATE,
+        SNAPSHOT_UPDATE,
+        SNAPSHOT_DELETE,
     ):
         registry.register(message_type, identity_handler)
     registry.freeze()

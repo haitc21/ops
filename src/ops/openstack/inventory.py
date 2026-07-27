@@ -23,6 +23,7 @@ COLLECTIONS = (
     "security_group_rule",
     "floating_ip",
     "volume",
+    "volume-snapshot",
     "instance",
 )
 
@@ -147,6 +148,10 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         }.items():
             if value is not None:
                 item[key] = value
+    if resource_type in {"snapshot", "volume-snapshot"}:
+        project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
+        if project_id is not None:
+            item["project_provider_resource_id"] = project_id
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),
@@ -203,6 +208,8 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
             "availability_zone",
             "attachments",
         ),
+        "snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
+        "volume-snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
         "instance": (
             "power_state",
             "flavor",
@@ -245,6 +252,8 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
         "security_group_rule": ("network", "security_group_rules"),
         "floating_ip": ("network", "ips"),
         "volume": ("block_storage", "volumes"),
+        "snapshot": ("block_storage", "snapshots"),
+        "volume-snapshot": ("block_storage", "snapshots"),
         "instance": ("compute", "servers"),
     }
     service, method_name = proxy_name[resource_type]
@@ -274,6 +283,8 @@ def collect_targeted_resource(
         "security_group_rule": ("network", "get_security_group_rule"),
         "floating_ip": ("network", "get_ip"),
         "volume": ("block_storage", "get_volume"),
+        "snapshot": ("block_storage", "get_snapshot"),
+        "volume-snapshot": ("block_storage", "get_snapshot"),
         "instance": ("compute", "get_server"),
     }[resource_type]
     proxy = getattr(connection, getter[0])

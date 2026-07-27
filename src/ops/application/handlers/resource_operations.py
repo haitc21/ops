@@ -250,6 +250,8 @@ def _execute(
         return _execute_volume(connection, operation, provider_id, request, params)
     if resource_type == "volume-attachment":
         return _execute_volume_attachment(connection, operation, params)
+    if resource_type == "snapshot":
+        return _execute_snapshot(connection, operation, provider_id, params)
     if resource_type in {
         "network",
         "subnet",
@@ -434,12 +436,18 @@ def _execute_volume(
             return _get_volume(proxy, provider_id), ResourceOperationState.SUCCEEDED
         name = value("name")
         size = value("size_gib")
-        if not name or size is None:
-            raise ValueError("volume create requires name and size_gib")
+        source_snapshot_id = value("source_snapshot_provider_resource_id")
+        if not name or (size is None and not source_snapshot_id):
+            raise ValueError("volume create requires name and size_gib or source snapshot")
         create_params = {
             "name": name,
-            "size": size,
         }
+        if size is not None:
+            create_params["size"] = size
+        if source_snapshot_id:
+            snapshot = _get_snapshot(proxy, str(source_snapshot_id))
+            _snapshot_owner_check(connection, params, snapshot)
+            create_params["snapshot_id"] = str(source_snapshot_id)
         optional = {
             "volume_type": value("volume_type_provider_resource_id"),
             "availability_zone": value("availability_zone"),
@@ -482,6 +490,91 @@ def _get_volume(proxy: Any, provider_id: str) -> Any:
     if not callable(getter):
         raise ValueError("volume getter unsupported")
     return getter(provider_id)
+
+
+def _execute_snapshot(
+    connection: Any,
+    operation: str,
+    provider_id: str | None,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Execute replay-safe Cinder snapshot lifecycle operations."""
+    proxy = getattr(connection, "block_storage", None)
+    if proxy is None:
+        raise ValueError("block_storage service is unavailable")
+
+    if operation in {"create", "ensure"}:
+        volume_id = params.get("volume_id")
+        if not volume_id:
+            raise ValueError("snapshot create requires volume_id")
+        volume = _get_volume(proxy, str(volume_id))
+        _snapshot_owner_check(connection, params, volume)
+        if operation == "ensure" and provider_id:
+            return _get_snapshot(proxy, provider_id), ResourceOperationState.SUCCEEDED
+        name = params.get("name")
+        if not name:
+            raise ValueError("snapshot create requires name")
+        create_params = {
+            key: params[key]
+            for key in ("volume_id", "name", "description", "force", "metadata")
+            if params.get(key) is not None
+        }
+        snapshot = proxy.create_snapshot(**create_params)
+        waiter = getattr(proxy, "wait_for_status", None)
+        if callable(waiter):
+            snapshot = waiter(
+                snapshot,
+                status="available",
+                failures=["error", "error_deleting"],
+                interval=1,
+                wait=300,
+            )
+        return snapshot, ResourceOperationState.SUCCEEDED
+
+    if not provider_id:
+        raise ValueError(f"snapshot {operation} requires provider_resource_id")
+    try:
+        existing = _get_snapshot(proxy, provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+        if operation == "delete":
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+    _snapshot_owner_check(connection, params, existing)
+
+    if operation in {"update", "patch"}:
+        update_params = {
+            key: params[key]
+            for key in ("name", "description", "metadata")
+            if params.get(key) is not None
+        }
+        if not update_params:
+            return existing, ResourceOperationState.SUCCEEDED
+        return proxy.update_snapshot(existing, **update_params), ResourceOperationState.SUCCEEDED
+
+    if operation == "delete":
+        proxy.delete_snapshot(existing, ignore_missing=True, force=bool(params.get("force", False)))
+        return None, ResourceOperationState.SUCCEEDED
+
+    raise ValueError(f"unsupported snapshot operation: {operation}")
+
+
+def _get_snapshot(proxy: Any, provider_id: str) -> Any:
+    getter = getattr(proxy, "get_snapshot", None)
+    if not callable(getter):
+        raise ValueError("snapshot getter unsupported")
+    return getter(provider_id)
+
+
+def _snapshot_owner_check(connection: Any, params: dict[str, Any], resource: Any) -> None:
+    effective_project = discover_effective_scope(connection).get("project_id")
+    requested_project = params.get("project_id") or params.get("project_provider_resource_id")
+    resource_project = getattr(resource, "project_id", None) or getattr(resource, "tenant_id", None)
+    if effective_project and requested_project and str(effective_project) != str(requested_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if effective_project and resource_project and str(effective_project) != str(resource_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if requested_project and resource_project and str(requested_project) != str(resource_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
 
 
 def _execute_volume_attachment(

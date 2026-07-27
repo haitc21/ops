@@ -27,6 +27,7 @@ class InventoryResourceType(StrEnum):
     SECURITY_GROUP_RULE = "security_group_rule"
     FLOATING_IP = "floating_ip"
     VOLUME = "volume"
+    SNAPSHOT = "volume-snapshot"
 
 
 class InventoryCollectionStatus(StrEnum):

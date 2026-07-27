@@ -18,10 +18,17 @@ from tests.unit.messaging.fakes import (
 from ops.application.dispatch import (
     build_default_registry,
     build_dispatch_handler,
+    build_production_registry,
     dispatch_command,
 )
 from ops.application.handlers.registry import HandlerRegistry
-from ops.contracts.messages.types import CONNECTION_VALIDATE
+from ops.config import Settings
+from ops.contracts.messages.types import (
+    CONNECTION_VALIDATE,
+    SNAPSHOT_CREATE,
+    SNAPSHOT_DELETE,
+    SNAPSHOT_UPDATE,
+)
 from ops.messaging.consumer import (
     CommandConsumer,
     DeliveryProcessingRecord,
@@ -166,6 +173,14 @@ def test_default_registry_is_frozen() -> None:
 
     with pytest.raises(RuntimeError, match="frozen"):
         dispatch_module._DEFAULT_REGISTRY.register("openstack.other", handler)
+
+
+def test_production_registry_registers_snapshot_lifecycle_handlers() -> None:
+    registry = build_production_registry(Settings(environment="test"))
+
+    assert registry.lookup(SNAPSHOT_CREATE) is not None
+    assert registry.lookup(SNAPSHOT_UPDATE) is not None
+    assert registry.lookup(SNAPSHOT_DELETE) is not None
 
 
 def test_build_default_registry_unfrozen_allows_register_without_callback() -> None:
