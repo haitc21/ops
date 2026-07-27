@@ -79,3 +79,44 @@ def test_security_rule_validates_ranges_before_provider_call():
                 },
             ),
         )
+
+
+def test_network_guardrails_reject_external_mutation_and_bad_subnet_pool():
+    connection = SimpleNamespace(
+        network=FakeNetwork(), session=SimpleNamespace(auth=SimpleNamespace(project_id="p1"))
+    )
+    with pytest.raises(ValueError, match="administrator-only"):
+        _execute(connection, request("network", "create", {"name": "public", "external": True}))
+    with pytest.raises(ValueError, match="inside subnet cidr"):
+        _execute(
+            connection,
+            request(
+                "subnet",
+                "create",
+                {
+                    "name": "bad",
+                    "network_id": "net-1",
+                    "cidr": "10.0.0.0/24",
+                    "allocation_pools": [{"start": "10.0.1.10", "end": "10.0.1.20"}],
+                },
+            ),
+        )
+
+
+def test_security_rule_rejects_public_ingress_by_default():
+    connection = SimpleNamespace(
+        network=FakeNetwork(), session=SimpleNamespace(auth=SimpleNamespace(project_id="p1"))
+    )
+    with pytest.raises(ValueError, match="public ingress"):
+        _execute(
+            connection,
+            request(
+                "security_group_rule",
+                "create",
+                {
+                    "security_group_id": "sg-1",
+                    "direction": "ingress",
+                    "remote_ip_prefix": "0.0.0.0/0",
+                },
+            ),
+        )

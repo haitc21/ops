@@ -8,6 +8,7 @@ requested state and emits a normalized resource-operation result.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import uuid
 from typing import Any
@@ -96,6 +97,13 @@ def _scope_allowed(connection: Any, required: str) -> bool:
     return effective in order and order[effective] >= order.get(required, 99)
 
 
+def _preflight_network_guardrails(request: ResourceOperationRequest) -> None:
+    resource_type = request.resource_type.lower().replace("network.", "")
+    kind = _network_type(resource_type)
+    if kind in {"network", "subnet", "security_group_rule"}:
+        _validate_network_parameters(kind, request.operation.lower(), dict(request.parameters))
+
+
 def _resource_payload(
     request: ResourceOperationRequest, resource: Any, resource_type: str
 ) -> dict[str, Any]:
@@ -164,6 +172,24 @@ async def resource_operation(
 ) -> HandlerSuccess | HandlerFailedResult | HandlerRetryableError:
     try:
         request = _request(command)
+        try:
+            _preflight_network_guardrails(request)
+        except ValueError as exc:
+            error = CommonError(
+                code="NETWORK_POLICY_VIOLATION",
+                message=str(exc),
+                category=ErrorCategory.AUTHORIZATION,
+                retryable=False,
+            )
+            return HandlerFailedResult(
+                result_routing_key=OPERATION_FAILED,
+                result_body=_event(
+                    command,
+                    error.model_dump(mode="json"),
+                    "resource.operation.network-policy",
+                    OPERATION_FAILED,
+                ),
+            )
         resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             await asyncio.to_thread(connection.authorize)
@@ -873,6 +899,28 @@ def _validate_network_parameters(kind: str, operation: str, params: dict[str, An
         raise ValueError("network_id is required")
     if kind == "subnet" and not params.get("cidr"):
         raise ValueError("cidr is required")
+    if kind == "network" and params.get("external") is True:
+        raise ValueError("external network mutation is administrator-only")
+    if kind == "subnet":
+        try:
+            requested = ipaddress.ip_network(str(params["cidr"]), strict=False)
+        except ValueError as exc:
+            raise ValueError("invalid subnet cidr") from exc
+        gateway = params.get("gateway_ip")
+        if gateway is not None and ipaddress.ip_address(str(gateway)) not in requested:
+            raise ValueError("gateway_ip must be inside subnet cidr")
+        for pool in params.get("allocation_pools", []) or []:
+            if not isinstance(pool, dict) or not pool.get("start") or not pool.get("end"):
+                raise ValueError("invalid allocation pool")
+            start = ipaddress.ip_address(str(pool["start"]))
+            end = ipaddress.ip_address(str(pool["end"]))
+            if (
+                start.version != end.version
+                or start not in requested
+                or end not in requested
+                or int(start) > int(end)
+            ):
+                raise ValueError("allocation pool must be inside subnet cidr")
     if kind == "security_group_rule":
         if not params.get("security_group_id"):
             raise ValueError("security_group_id is required")
@@ -897,6 +945,8 @@ def _validate_network_parameters(kind: str, operation: str, params: dict[str, An
         protocol = params.get("protocol")
         if protocol is not None and not isinstance(protocol, str):
             raise ValueError("protocol must be a string")
+        if params.get("remote_ip_prefix") in {"0.0.0.0/0", "::/0"}:
+            raise ValueError("public ingress rules require administrator policy")
 
 
 def _raise(message: str) -> Any:
