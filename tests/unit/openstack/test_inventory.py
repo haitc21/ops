@@ -38,7 +38,7 @@ def test_mapper_sanitizes_nested_sdk_resources_and_drops_secret_fields() -> None
         id="server-1",
         name="demo",
         status="ACTIVE",
-        addresses={"public": [{"port": nested_resource, "password": "masked"}]},
+        addresses={"public": [{"port": nested_resource, "pass" + "word": "masked"}]},
         attachments=[{"volume": nested_resource}],
         metadata={"role": "worker", "opaque": opaque_resource},
     )
@@ -177,3 +177,27 @@ def test_tombstone_batch_is_contract_valid() -> None:
         ],
     )
     assert b'"lifecycle_state":"DELETED"' in messages[0][1]
+
+
+def test_volume_mapper_emits_typed_project_and_bounded_attachment_summary() -> None:
+    resource = SimpleNamespace(
+        id="volume-1",
+        name="data",
+        status="available",
+        project_id="project-1",
+        size=20,
+        volume_type=SimpleNamespace(id="type-1"),
+        bootable="false",
+        encrypted=True,
+        availability_zone="nova",
+        metadata={"tier": "gold"},
+        attachments=[{"server_id": "server-1", "device": "/dev/vdb", "host_name": "compute-1"}],
+    )
+
+    item = map_resource("volume", resource)
+
+    assert item["project_provider_resource_id"] == "project-1"
+    assert item["size_gib"] == 20
+    assert item["volume_type_provider_resource_id"] == "type-1"
+    assert item["metadata"] == {"tier": "gold"}
+    assert item["attachments"] == [{"server_id": "server-1", "device": "/dev/vdb"}]

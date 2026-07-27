@@ -43,6 +43,15 @@ class InventoryBatchItem(BaseModel):
     provider_created_at: str | None = None
     provider_updated_at: str | None = None
     lifecycle_state: str = Field(default="ACTIVE", pattern="^(ACTIVE|DELETED)$")
+    project_provider_resource_id: str | None = Field(default=None, max_length=255)
+    volume_type_provider_resource_id: str | None = Field(default=None, max_length=255)
+    size_gib: int | None = Field(default=None, ge=1, le=16384)
+    bootable: bool | None = None
+    root: bool | None = None
+    encrypted: bool | None = None
+    metadata: dict[str, Any] | None = None
+    availability_zone: str | None = Field(default=None, max_length=255)
+    attachments: list[dict[str, Any]] = Field(default_factory=list, max_length=32)
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 

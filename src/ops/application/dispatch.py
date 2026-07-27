@@ -63,6 +63,11 @@ from ops.contracts.messages.types import (
     SUBNET_CREATE,
     SUBNET_DELETE,
     SUBNET_UPDATE,
+    VOLUME_ATTACH,
+    VOLUME_CREATE,
+    VOLUME_DELETE,
+    VOLUME_DETACH,
+    VOLUME_RESIZE,
 )
 from ops.messaging.consumer import HandlerFn, HandlerNonRetryableError, HandlerOutcome
 
@@ -131,6 +136,11 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
         FLOATING_IP_ASSOCIATE,
         FLOATING_IP_DISASSOCIATE,
         FLOATING_IP_RELEASE,
+        VOLUME_CREATE,
+        VOLUME_RESIZE,
+        VOLUME_DELETE,
+        VOLUME_ATTACH,
+        VOLUME_DETACH,
     ):
         registry.register(message_type, identity_handler)
     registry.freeze()

@@ -46,6 +46,38 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else None
 
 
+def _bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.lower()
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    return None
+
+
+def _volume_attachment_summary(value: Any) -> list[dict[str, Any]]:
+    """Keep only bounded, non-secret attachment identity fields."""
+    if not isinstance(value, list | tuple):
+        return []
+    summaries: list[dict[str, Any]] = []
+    for attachment in value[:32]:
+        if not isinstance(attachment, Mapping):
+            continue
+        summary = {
+            key: str(attachment[key])
+            for key in ("server_id", "device", "attachment_id", "volume_id")
+            if attachment.get(key) is not None
+        }
+        if summary:
+            summaries.append(summary)
+    return summaries
+
+
 def _is_sensitive_key(key: str) -> bool:
     lowered = key.lower()
     return any(part in lowered for part in _SENSITIVE_KEY_PARTS)
@@ -95,6 +127,26 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         "provider_updated_at": _iso(_value(resource, "updated_at")),
         "attributes": {},
     }
+    if resource_type == "volume":
+        project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
+        volume_type = _value(resource, "volume_type")
+        if hasattr(volume_type, "id"):
+            volume_type = volume_type.id
+        for key, value in {
+            "project_provider_resource_id": project_id,
+            "volume_type_provider_resource_id": volume_type,
+            "size_gib": _value(resource, "size"),
+            "bootable": _bool(_value(resource, "bootable")),
+            "root": _bool(_value(resource, "root"))
+            if _value(resource, "root") is not None
+            else _bool(_value(resource, "is_root")),
+            "encrypted": _bool(_value(resource, "encrypted")),
+            "metadata": _value(resource, "metadata"),
+            "availability_zone": _value(resource, "availability_zone"),
+            "attachments": _volume_attachment_summary(_value(resource, "attachments", [])),
+        }.items():
+            if value is not None:
+                item[key] = value
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),

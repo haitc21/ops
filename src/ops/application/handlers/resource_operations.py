@@ -218,7 +218,14 @@ async def resource_operation(
             else HandlerFailedResult()
         )
     except Exception as exc:
-        error = normalize_openstack_exception(exc, service="identity")
+        error = normalize_openstack_exception(
+            exc,
+            service=(
+                "block_storage"
+                if "volume" in str(getattr(command, "payload", {}).get("resource_type", "")).lower()
+                else "identity"
+            ),
+        )
         if error.retryable:
             return HandlerRetryableError(error=error, retry_reason="PROVIDER_UNAVAILABLE")
         return HandlerFailedResult(
@@ -239,6 +246,10 @@ def _execute(
     resource_type = request.resource_type.lower().replace("identity.", "").replace("network.", "")
     params = dict(request.parameters)
     provider_id = request.provider_resource_id
+    if resource_type == "volume":
+        return _execute_volume(connection, operation, provider_id, request, params)
+    if resource_type == "volume-attachment":
+        return _execute_volume_attachment(connection, operation, params)
     if resource_type in {
         "network",
         "subnet",
@@ -396,6 +407,126 @@ def _execute(
             "attributes": _normalize_quota(quota),
         }, ResourceOperationState.SUCCEEDED
     raise ValueError(f"unsupported resource operation: {request.resource_type}/{request.operation}")
+
+
+def _execute_volume(
+    connection: Any,
+    operation: str,
+    provider_id: str | None,
+    request: Any,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Execute a project-scoped Cinder volume lifecycle operation.
+
+    The block-storage proxy owns provider I/O.  This helper deliberately does
+    not force-delete attached volumes and treats a missing delete target as a
+    converged, idempotent result.
+    """
+    proxy = getattr(connection, "block_storage", None)
+    if proxy is None:
+        raise ValueError("block_storage service is unavailable")
+
+    def value(name: str, default: Any = None) -> Any:
+        return getattr(request, name, params.get(name, default))
+
+    if operation in {"create", "ensure"}:
+        if operation == "ensure" and provider_id:
+            return _get_volume(proxy, provider_id), ResourceOperationState.SUCCEEDED
+        name = value("name")
+        size = value("size_gib")
+        if not name or size is None:
+            raise ValueError("volume create requires name and size_gib")
+        create_params = {
+            "name": name,
+            "size": size,
+        }
+        optional = {
+            "volume_type": value("volume_type_provider_resource_id"),
+            "availability_zone": value("availability_zone"),
+            "metadata": value("metadata", {}),
+            "project_id": value("project_provider_resource_id"),
+        }
+        create_params.update({key: item for key, item in optional.items() if item is not None})
+        return proxy.create_volume(**create_params), ResourceOperationState.SUCCEEDED
+
+    if not provider_id:
+        raise ValueError(f"volume {operation} requires provider_resource_id")
+    try:
+        existing = _get_volume(proxy, provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+        if operation == "delete":
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+
+    if operation == "resize":
+        requested_size = value("size_gib")
+        if requested_size is None:
+            raise ValueError("volume resize requires size_gib")
+        current_size = getattr(existing, "size", None)
+        if current_size is not None and requested_size < current_size:
+            raise ValueError("volume resize cannot shrink")
+        if current_size == requested_size:
+            return existing, ResourceOperationState.SUCCEEDED
+        result = proxy.extend_volume(existing, requested_size)
+        return result or existing, ResourceOperationState.SUCCEEDED
+
+    if operation == "delete":
+        proxy.delete_volume(existing, ignore_missing=True)
+        return None, ResourceOperationState.SUCCEEDED
+
+    raise ValueError(f"unsupported volume operation: {operation}")
+
+
+def _get_volume(proxy: Any, provider_id: str) -> Any:
+    getter = getattr(proxy, "get_volume", None)
+    if not callable(getter):
+        raise ValueError("volume getter unsupported")
+    return getter(provider_id)
+
+
+def _execute_volume_attachment(
+    connection: Any,
+    operation: str,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Attach or detach a Cinder volume to a Nova server."""
+    server_id = params.get("server_id")
+    volume_id = params.get("volume_id")
+    if not server_id or not volume_id:
+        raise ValueError("volume attachment requires server_id and volume_id")
+
+    compute = getattr(connection, "compute", None)
+    if compute is None:
+        raise ValueError("compute service is unavailable")
+    block_storage = getattr(connection, "block_storage", None)
+    if block_storage is None:
+        raise ValueError("block storage service is unavailable")
+    volume = block_storage.get_volume(volume_id)
+    server = compute.get_server(server_id)
+    volume_project = getattr(volume, "project_id", None) or getattr(volume, "tenant_id", None)
+    server_project = getattr(server, "project_id", None) or getattr(server, "tenant_id", None)
+    requested_project = params.get("project_provider_resource_id")
+    if requested_project and any(
+        owner and str(owner) != str(requested_project) for owner in (volume_project, server_project)
+    ):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if volume_project and server_project and str(volume_project) != str(server_project):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    effective_project = discover_effective_scope(connection).get("project_id")
+    if effective_project and any(
+        owner and str(owner) != str(effective_project) for owner in (volume_project, server_project)
+    ):
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    if operation == "attach":
+        attachment = compute.create_volume_attachment(server_id, volume_id)
+        return attachment, ResourceOperationState.SUCCEEDED
+    if operation == "detach":
+        try:
+            compute.delete_volume_attachment(server_id, volume_id, ignore_missing=True)
+        except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+            return None, ResourceOperationState.ALREADY_ABSENT
+        return None, ResourceOperationState.SUCCEEDED
+    raise ValueError(f"unsupported volume attachment operation: {operation}")
 
 
 def _network_proxy(connection: Any) -> Any:
