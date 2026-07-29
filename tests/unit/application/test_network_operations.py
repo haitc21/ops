@@ -120,3 +120,93 @@ def test_security_rule_rejects_public_ingress_by_default():
                 },
             ),
         )
+
+
+class FakeFloatingIpNetwork:
+    def __init__(self):
+        self.updated = []
+
+    def get_ip(self, resource_id):
+        return SimpleNamespace(
+            id=resource_id,
+            floating_network_id="ext-net",
+            port_id=None,
+            project_id="p1",
+        )
+
+    def get_port(self, resource_id):
+        return SimpleNamespace(id=resource_id, project_id="p1")
+
+    def update_ip(self, existing, **kwargs):
+        self.updated.append(kwargs)
+        existing.port_id = kwargs.get("port_id")
+        return existing
+
+
+def test_floating_ip_associate_requires_port_id():
+    connection = SimpleNamespace(
+        network=FakeFloatingIpNetwork(),
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    with pytest.raises(ValueError, match="port_id is required"):
+        _execute(
+            connection,
+            request(
+                "floating_ip",
+                "associate",
+                {},
+                provider_resource_id="fip-1",
+            ),
+        )
+
+
+def test_floating_ip_associate_updates_port():
+    network = FakeFloatingIpNetwork()
+    connection = SimpleNamespace(
+        network=network,
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    result, state = _execute(
+        connection,
+        request(
+            "floating_ip",
+            "associate",
+            {"port_id": "port-1"},
+            provider_resource_id="fip-1",
+        ),
+    )
+    assert state.value == "SUCCEEDED"
+    assert result.port_id == "port-1"
+    assert network.updated == [{"port_id": "port-1"}]
+
+
+class FakeFloatingIpNetworkAdminOwned(FakeFloatingIpNetwork):
+    def get_ip(self, resource_id):
+        return SimpleNamespace(
+            id=resource_id,
+            floating_network_id="ext-net",
+            port_id=None,
+            project_id="admin-project",
+        )
+
+    def get_port(self, resource_id):
+        return SimpleNamespace(id=resource_id, project_id="p1")
+
+
+def test_floating_ip_associate_checks_port_not_fip_project():
+    network = FakeFloatingIpNetworkAdminOwned()
+    connection = SimpleNamespace(
+        network=network,
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    result, state = _execute(
+        connection,
+        request(
+            "floating_ip",
+            "associate",
+            {"port_id": "port-1"},
+            provider_resource_id="fip-1",
+        ),
+    )
+    assert state.value == "SUCCEEDED"
+    assert network.updated == [{"port_id": "port-1"}]

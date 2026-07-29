@@ -1,6 +1,6 @@
 # OPS-1803 — Nested lab hypervisor, FIP ops, and inventory fixes
 
-**Status:** Open — deferred after lab E2E session 2026-07-28
+**Status:** In progress — FIP associate + service mapping fixed 2026-07-29
 **Points:** TBD
 **Paired task:** CPS-1803
 
@@ -40,6 +40,6 @@ Temporary hook (remove after permanent fix): `/etc/libvirt/hooks/qemu` — rewri
 ## Done when
 
 - [ ] Uncommitted OPS fixes committed; unit tests pass in CI.
-- [ ] FIP associate integration test passes against lab Neutron.
+- [x] FIP associate integration test passes against lab Neutron (CPS op SUCCEEDED 2026-07-29).
 - [ ] Fresh `openstack server create` on compute01 starts with `-accel kvm` and stays running without hook.
-- [ ] Documented in lab runbook or sprint-18 release notes if hook remains required short-term.
+- [x] Documented in lab runbook or sprint-18 release notes if hook remains required short-term.

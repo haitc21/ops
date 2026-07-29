@@ -97,11 +97,45 @@ def _scope_allowed(connection: Any, required: str) -> bool:
     return effective in order and order[effective] >= order.get(required, 99)
 
 
+def _provider_service_for_resource(resource_type: str) -> str:
+    """Map CPS resource_type to OpenStack service for error normalization."""
+    normalized = resource_type.lower().replace("network.", "").replace("identity.", "")
+    if "volume" in normalized or normalized in {"snapshot", "volume-attachment"}:
+        return "block_storage"
+    if normalized in {
+        "network",
+        "subnet",
+        "router",
+        "port",
+        "security_group",
+        "security-group",
+        "security_group_rule",
+        "security-group-rule",
+        "floating_ip",
+        "floatingip",
+        "floating-ip",
+        "router_interface",
+        "router-interface",
+    }:
+        return "network"
+    if normalized in {"domain", "project", "role", "user", "quota"}:
+        return "identity"
+    if normalized in {"image", "flavor"}:
+        return "image"
+    if normalized in {"server", "instance", "keypair"}:
+        return "compute"
+    return "identity"
+
+
 def _preflight_network_guardrails(request: ResourceOperationRequest) -> None:
     resource_type = request.resource_type.lower().replace("network.", "")
     kind = _network_type(resource_type)
+    operation = request.operation.lower()
+    if kind == "floating_ip" and operation == "associate":
+        if not request.parameters.get("port_id"):
+            raise ValueError("port_id is required")
     if kind in {"network", "subnet", "security_group_rule"}:
-        _validate_network_parameters(kind, request.operation.lower(), dict(request.parameters))
+        _validate_network_parameters(kind, operation, dict(request.parameters))
 
 
 def _resource_payload(
@@ -246,13 +280,10 @@ async def resource_operation(
             else HandlerFailedResult()
         )
     except Exception as exc:
+        resource_type = str(getattr(command, "payload", {}).get("resource_type", ""))
         error = normalize_openstack_exception(
             exc,
-            service=(
-                "block_storage"
-                if "volume" in str(getattr(command, "payload", {}).get("resource_type", "")).lower()
-                else "identity"
-            ),
+            service=_provider_service_for_resource(resource_type),
         )
         if error.retryable:
             return HandlerRetryableError(error=error, retry_reason="PROVIDER_UNAVAILABLE")
@@ -844,8 +875,14 @@ def _execute_network(
                 if operation in {"release", "delete"}
                 else (_raise("floating IP not found"))
             )
-        _network_owner_check(connection, params, existing)
         if operation in {"associate", "disassociate", "update", "patch"}:
+            if operation == "associate" and not params.get("port_id"):
+                raise ValueError("port_id is required")
+            if operation == "associate":
+                port = proxy.get_port(str(params["port_id"]))
+                _network_owner_check(connection, params, port)
+            else:
+                _network_owner_check(connection, params, existing)
             values = (
                 {"port_id": params.get("port_id")}
                 if operation != "disassociate"
