@@ -262,11 +262,22 @@ class CommandConsumer:
         outcome: HandlerOutcome,
     ) -> bool:
         if isinstance(outcome, HandlerSuccess | HandlerFailedResult):
+            messages = getattr(outcome, "result_messages", ()) or (
+                (outcome.result_routing_key, outcome.result_body),
+            )
+            publishable = [
+                (routing_key, result_body)
+                for routing_key, result_body in messages
+                if routing_key and result_body
+            ]
+            if isinstance(outcome, HandlerFailedResult) and not publishable:
+                await message.reject(requeue=False)
+                metrics.increment("ops_commands_dlq_total")
+                actions.rejected = True
+                actions.reject_requeue = False
+                return False
             try:
-                messages = getattr(outcome, "result_messages", ()) or (
-                    (outcome.result_routing_key, outcome.result_body),
-                )
-                for routing_key, result_body in messages:
+                for routing_key, result_body in publishable:
                     await self.publisher.publish(self.event_exchange, routing_key, result_body)
             except PublishConfirmError:
                 if self.channel is not None:

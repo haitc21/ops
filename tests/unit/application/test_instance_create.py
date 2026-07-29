@@ -5,7 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from ops.application.handlers.instance_create import _create_kwargs, _find_server_by_operation
+from ops.application.handlers.instance_create import (
+    _create_kwargs,
+    _find_server_by_operation,
+    _resolve_security_groups_for_nova,
+)
 from ops.contracts.messages.instance import InstanceCommandPayload
 
 
@@ -40,6 +44,34 @@ def test_create_kwargs_does_not_put_private_key_material_in_request() -> None:
 
     assert "private_key" not in kwargs
     assert "ssh_public_key" not in kwargs
+
+
+def test_create_kwargs_uses_resolved_security_group_names() -> None:
+    kwargs = _create_kwargs(
+        _payload(security_group_provider_resource_ids=["sg-uuid-1"]),
+        uuid.uuid4(),
+        security_groups=[{"name": "ttcntt-default-sg"}],
+    )
+
+    assert kwargs["security_groups"] == [{"name": "ttcntt-default-sg"}]
+
+
+def test_create_kwargs_omits_security_groups_when_none_resolved() -> None:
+    kwargs = _create_kwargs(_payload(), uuid.uuid4(), security_groups=[])
+
+    assert "security_groups" not in kwargs
+
+
+def test_resolve_security_groups_for_nova_maps_ids_to_names() -> None:
+    connection = SimpleNamespace(
+        network=SimpleNamespace(
+            get_security_group=lambda sg_id: SimpleNamespace(id=sg_id, name="ttcntt-default-sg")
+        )
+    )
+
+    assert _resolve_security_groups_for_nova(connection, ["sg-uuid-1"]) == [
+        {"name": "ttcntt-default-sg"}
+    ]
 
 
 @pytest.mark.asyncio

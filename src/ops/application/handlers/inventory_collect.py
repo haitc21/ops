@@ -25,9 +25,19 @@ from ops.contracts.messages.types import INVENTORY_BATCH, INVENTORY_COMPLETED
 from ops.messaging.consumer import HandlerFailedResult, HandlerRetryableError, HandlerSuccess
 from ops.observability.redaction import redact_mapping
 from ops.openstack.factory import openstack_connection
-from ops.openstack.inventory import COLLECTIONS, collect_resources, collect_targeted_resource
+from ops.openstack.inventory import (
+    COLLECTIONS,
+    collect_resources,
+    collect_targeted_resource,
+    normalize_collection_names,
+)
 
 logger = logging.getLogger(__name__)
+
+
+async def _collect_with_timeout(collector: Any, *args: Any, timeout_seconds: float) -> Any:
+    """Bound a blocking SDK inventory call to the provider timeout budget."""
+    return await asyncio.wait_for(asyncio.to_thread(collector, *args), timeout=timeout_seconds)
 
 
 def _event(
@@ -106,11 +116,14 @@ async def inventory_collect(
     settings: Settings,
 ) -> HandlerSuccess | HandlerFailedResult | HandlerRetryableError:
     sync_id_raw = command.payload.get("sync_id")
-    collections = command.payload.get("collections", list(COLLECTIONS))
+    raw_collections = command.payload.get("collections", list(COLLECTIONS))
     batch_size = command.payload.get("batch_size", 100)
     if not isinstance(sync_id_raw, str):
         return HandlerFailedResult()
-    if not isinstance(collections, list) or not all(item in COLLECTIONS for item in collections):
+    if not isinstance(raw_collections, list):
+        return HandlerFailedResult()
+    collections = normalize_collection_names(raw_collections)
+    if not collections:
         return HandlerFailedResult()
     try:
         sync_id = uuid.UUID(sync_id_raw)
@@ -123,7 +136,12 @@ async def inventory_collect(
             results: list[tuple[str, bytes]] = []
             for resource_type in collections:
                 try:
-                    items = await asyncio.to_thread(collect_resources, connection, resource_type)
+                    items = await _collect_with_timeout(
+                        collect_resources,
+                        connection,
+                        resource_type,
+                        timeout_seconds=settings.openstack_timeout_seconds,
+                    )
                     collection_status = "COMPLETE"
                 except (
                     AttributeError,
@@ -185,8 +203,12 @@ async def inventory_refresh(
         resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             try:
-                item = await asyncio.to_thread(
-                    collect_targeted_resource, connection, resource_type, provider_resource_id
+                item = await _collect_with_timeout(
+                    collect_targeted_resource,
+                    connection,
+                    resource_type,
+                    provider_resource_id,
+                    timeout_seconds=settings.openstack_timeout_seconds,
                 )
             except (os_exc.ResourceNotFound, os_exc.NotFoundException):
                 item = {

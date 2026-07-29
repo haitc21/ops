@@ -72,6 +72,28 @@ def _consumer(
 
 
 @pytest.mark.asyncio
+async def test_empty_handler_failed_result_rejects_without_publish() -> None:
+    publisher = FakePublisher()
+
+    async def handler(*_args: Any) -> HandlerFailedResult:
+        return HandlerFailedResult()
+
+    consumer = _consumer(handler, publisher=publisher)
+    message = FakeIncomingMessage(
+        body=b"{}",
+        headers=fresh_delivery_headers(),
+    )
+    record = DeliveryProcessingRecord()
+    _, completed = await consumer.process_delivery(message, record)
+
+    assert completed is False
+    assert message.rejected is True
+    assert message.reject_requeue is False
+    assert message.acked is False
+    assert publisher.publishes == []
+
+
+@pytest.mark.asyncio
 async def test_success_publishes_result_then_acks() -> None:
     action_log: list[str] = []
     publisher = FakePublisher(action_log=action_log)

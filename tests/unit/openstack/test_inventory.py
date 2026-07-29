@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import time
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
+from ops.application.handlers import inventory_collect as inventory_handler
 from ops.application.handlers.inventory_collect import build_inventory_batch_messages
+from ops.config import Settings
 from ops.contracts.messages.envelope import MessageEnvelope
+from ops.messaging.consumer import HandlerRetryableError
 from ops.openstack.inventory import collect_resources, collect_targeted_resource, map_resource
 
 
@@ -52,6 +59,33 @@ def test_glance_property_is_normalized_to_catalog_approval() -> None:
         ),
     )
     assert item["attributes"]["catalog_approved"] is True
+
+
+def test_flavor_extra_specs_is_normalized_to_catalog_approval() -> None:
+    approved = map_resource(
+        "flavor",
+        SimpleNamespace(
+            id="1",
+            name="m1.nano",
+            vcpus=1,
+            ram=64,
+            disk=1,
+            extra_specs={"cmp-catalog-approved": "true"},
+        ),
+    )
+    rejected = map_resource(
+        "flavor",
+        SimpleNamespace(
+            id="2",
+            name="m1.small",
+            vcpus=1,
+            ram=2048,
+            disk=20,
+            extra_specs={"cmp-catalog-approved": "false"},
+        ),
+    )
+    assert approved["attributes"]["catalog_approved"] is True
+    assert rejected["attributes"]["catalog_approved"] is False
 
 
 def test_mapper_sanitizes_nested_sdk_resources_and_drops_secret_fields() -> None:
@@ -281,3 +315,68 @@ def test_snapshot_collection_uses_block_storage_proxy() -> None:
     )
 
     assert collect_resources(connection, "snapshot")[0]["provider_resource_id"] == "snapshot-2"
+
+
+def test_normalize_collection_names_maps_cps_hyphen_identifiers() -> None:
+    from ops.openstack.inventory import normalize_collection_name, normalize_collection_names
+
+    assert normalize_collection_name("security-group") == "security_group"
+    assert normalize_collection_name("floating-ip") == "floating_ip"
+    assert normalize_collection_name("volume-snapshot") == "volume-snapshot"
+    assert normalize_collection_name("role-assignment") is None
+    assert normalize_collection_names(
+        [
+            "domain",
+            "security-group",
+            "floating-ip",
+            "role-assignment",
+            "quota",
+            "security-group",
+        ]
+    ) == ["domain", "security_group", "floating_ip"]
+
+
+@pytest.mark.asyncio
+async def test_inventory_collection_bounds_blocking_provider_call(monkeypatch) -> None:
+    command = MessageEnvelope.model_validate(
+        {
+            "message_id": "11111111-1111-4111-8111-111111111111",
+            "message_type": "openstack.inventory.collect",
+            "schema_version": "1.0",
+            "occurred_at": "2026-07-23T00:00:00Z",
+            "correlation_id": "22222222-2222-4222-8222-222222222222",
+            "operation_id": "33333333-3333-4333-8333-333333333333",
+            "provider_id": "44444444-4444-4444-8444-444444444444",
+            "provider_connection_id": "55555555-5555-4555-8555-555555555555",
+            "payload": {
+                "sync_id": "77777777-7777-4777-8777-777777777777",
+                "collections": ["image"],
+                "batch_size": 1,
+            },
+        }
+    )
+
+    async def resolve(_self, _connection_id):
+        return SimpleNamespace()
+
+    @contextmanager
+    def fake_connection(_resolution, _settings):
+        yield SimpleNamespace()
+
+    def stuck_collector(_connection, _resource_type):
+        time.sleep(2)
+        return []
+
+    monkeypatch.setattr(inventory_handler.CredentialResolver, "resolve", resolve)
+    monkeypatch.setattr(inventory_handler, "openstack_connection", fake_connection)
+    monkeypatch.setattr(inventory_handler, "collect_resources", stuck_collector)
+
+    outcome = await inventory_handler.inventory_collect(
+        command,
+        SimpleNamespace(),
+        "ops.command.v1",
+        settings=Settings(environment="test", openstack_timeout_seconds=1),
+    )
+
+    assert isinstance(outcome, HandlerRetryableError)
+    assert outcome.retry_reason == "PROVIDER_UNAVAILABLE"

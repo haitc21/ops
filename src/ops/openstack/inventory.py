@@ -30,6 +30,41 @@ COLLECTIONS = (
     "instance",
 )
 
+_COLLECTION_HYPHEN_ALIASES = {
+    "security-group": "security_group",
+    "security-group-rule": "security_group_rule",
+    "floating-ip": "floating_ip",
+}
+
+
+def normalize_collection_name(name: str) -> str | None:
+    """Map CPS catalog collection identifiers to OPS collector names."""
+    if name in COLLECTIONS:
+        return name
+    aliased = _COLLECTION_HYPHEN_ALIASES.get(name)
+    if aliased is not None:
+        return aliased
+    underscored = name.replace("-", "_")
+    if underscored in COLLECTIONS:
+        return underscored
+    return None
+
+
+def normalize_collection_names(names: list[str]) -> list[str]:
+    """Drop unsupported collections and dedupe while preserving order."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        if not isinstance(name, str):
+            continue
+        mapped = normalize_collection_name(name)
+        if mapped is None or mapped in seen:
+            continue
+        seen.add(mapped)
+        normalized.append(mapped)
+    return normalized
+
+
 _DROP = object()
 _SENSITIVE_KEY_PARTS = (
     "password",
@@ -252,6 +287,11 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
     metadata = _value(resource, "metadata") or _value(resource, "properties")
     if isinstance(metadata, Mapping):
         approval = metadata.get("cmp-catalog-approved")
+        if isinstance(approval, str):
+            attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
+    extra_specs = _value(resource, "extra_specs")
+    if isinstance(extra_specs, Mapping):
+        approval = extra_specs.get("cmp-catalog-approved")
         if isinstance(approval, str):
             attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
     item["attributes"] = attributes

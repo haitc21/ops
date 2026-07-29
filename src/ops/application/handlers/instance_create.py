@@ -118,11 +118,29 @@ def _failure(command: MessageEnvelope, error: CommonError) -> bytes:
     )
 
 
+def _resolve_security_groups_for_nova(connection: Any, sg_ids: list[str]) -> list[dict[str, str]]:
+    """Map Neutron security-group IDs to the name objects Nova accepts on this cloud."""
+    if not sg_ids:
+        return []
+    network = getattr(connection, "network", None)
+    if network is None:
+        raise ValueError("network service is unavailable")
+    resolved: list[dict[str, str]] = []
+    for sg_id in sg_ids:
+        sg = network.get_security_group(sg_id)
+        name = getattr(sg, "name", None)
+        if not name:
+            raise ValueError(f"security group {sg_id} has no name")
+        resolved.append({"name": str(name)})
+    return resolved
+
+
 def _create_kwargs(
     payload: InstanceCommandPayload,
     operation_id: uuid.UUID,
     *,
     key_name: str | None = None,
+    security_groups: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     if payload.create is None:
         raise ValueError("create payload is required")
@@ -133,7 +151,6 @@ def _create_kwargs(
         "name": request.name,
         "flavor_id": request.flavor_provider_resource_id,
         "networks": networks,
-        "security_groups": request.security_group_provider_resource_ids,
         "key_name": key_name or request.key_name,
         "availability_zone": request.availability_zone,
         "config_drive": request.config_drive,
@@ -144,6 +161,8 @@ def _create_kwargs(
             **({"cmp_keypair_name": key_name} if key_name else {}),
         },
     }
+    if security_groups:
+        kwargs["security_groups"] = security_groups
     if request.user_data is not None:
         kwargs["user_data"] = base64.b64encode(request.user_data.encode()).decode()
     if request.boot_source.value == "IMAGE":
@@ -197,10 +216,20 @@ async def instance_create(
                 timeout_seconds=settings.openstack_timeout_seconds,
             )
             if existing is None:
+                nova_security_groups = await asyncio.to_thread(
+                    _resolve_security_groups_for_nova,
+                    connection,
+                    list(request.security_group_provider_resource_ids),
+                )
                 try:
                     existing = await _sdk_call(
                         compute.create_server,
-                        **_create_kwargs(payload, command.operation_id, key_name=managed_key_name),
+                        **_create_kwargs(
+                            payload,
+                            command.operation_id,
+                            key_name=managed_key_name,
+                            security_groups=nova_security_groups,
+                        ),
                         timeout_seconds=settings.openstack_timeout_seconds,
                     )
                 except os_exc.EndpointNotFound:
