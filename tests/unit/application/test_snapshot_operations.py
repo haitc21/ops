@@ -11,6 +11,7 @@ from ops.contracts.messages.resource_operations import (
     ResourceOperationRequest,
     ResourceOperationState,
 )
+from ops.openstack.volume_lifecycle import VolumeStateConflictError
 
 
 class FakeSnapshotProxy:
@@ -132,3 +133,15 @@ def test_snapshot_create_requires_volume_id() -> None:
 
     with pytest.raises(ValueError, match="volume_id"):
         _execute(connection(proxy), request("create", name="missing-source"))
+
+
+def test_snapshot_create_requires_force_for_in_use_volume() -> None:
+    proxy = FakeSnapshotProxy()
+    in_use_volume = SimpleNamespace(id="volume-in-use", project_id="project-1", status="in-use")
+    proxy.get_volume = lambda volume_id: in_use_volume  # type: ignore[method-assign]
+
+    with pytest.raises(VolumeStateConflictError, match="force=true"):
+        _execute(
+            connection(proxy),
+            request("create", volume_id="volume-in-use", name="checkpoint", project_id="project-1"),
+        )

@@ -11,6 +11,7 @@ from ops.contracts.messages.resource_operations import (
     ScopeKind,
 )
 from ops.contracts.messages.volume_operations import VolumeOperationRequest
+from ops.openstack.volume_lifecycle import VolumeStateConflictError
 
 
 class FakeBlockStorage:
@@ -25,6 +26,7 @@ class FakeBlockStorage:
             project_id=kwargs.get("project_id", "project-1"),
             attachments=[],
             bootable=False,
+            status="available",
         )
         self.items.append(item)
         return item
@@ -37,11 +39,26 @@ class FakeBlockStorage:
 
     def extend_volume(self, item, new_size):
         item.size = new_size
+        item.status = "extending"
         return item
 
+    def wait_for_status(
+        self,
+        volume,
+        *,
+        status: str,
+        failures: list[str] | None = None,
+        interval: int | float | None = 2,
+        wait: int | None = None,
+        attribute: str = "status",
+        callback=None,
+    ):
+        volume.status = status
+        return volume
+
     def delete_volume(self, item, ignore_missing=False):
-        if item.attachments:
-            raise ValueError("volume has attachments")
+        if item.attachments or item.status in {"in-use", "detaching"}:
+            raise os_exc.ConflictException("volume has attachments")
         self.items.remove(item)
 
 
@@ -74,6 +91,7 @@ def test_volume_create_resize_delete_uses_cinder_proxy_and_never_shrinks():
         request("resize", provider_resource_id=volume.id, size_gib=20),
     )
     assert volume.size == 20
+    assert volume.status == "available"
     assert state.value == "SUCCEEDED"
 
     with pytest.raises(ValueError, match="cannot shrink"):
@@ -84,6 +102,19 @@ def test_volume_create_resize_delete_uses_cinder_proxy_and_never_shrinks():
 
     _, state = _execute(connection(storage), request("delete", provider_resource_id=volume.id))
     assert state.value == "SUCCEEDED"
+
+
+def test_volume_delete_rejects_detaching_volume() -> None:
+    storage = FakeBlockStorage()
+    volume, _ = _execute(
+        connection(storage),
+        request("create", name="data-01", size_gib=10, project_provider_resource_id="project-1"),
+    )
+    volume.status = "detaching"
+    volume.attachments = [SimpleNamespace(server_id="server-1")]
+
+    with pytest.raises(VolumeStateConflictError, match="cannot be deleted"):
+        _execute(connection(storage), request("delete", provider_resource_id=volume.id))
 
 
 class FakeCompute:
@@ -106,12 +137,43 @@ class FakeCompute:
 
 
 class AttachmentBlockStorage:
+    def __init__(self, *, status: str = "available", attachments=None) -> None:
+        self.status = status
+        self.attachments = list(attachments or [])
+        self.wait_calls: list[str] = []
+
     def get_volume(self, volume_id: str):
-        return SimpleNamespace(id=volume_id, project_id="project-1")
+        return SimpleNamespace(
+            id=volume_id,
+            project_id="project-1",
+            status=self.status,
+            attachments=list(self.attachments),
+        )
+
+    def wait_for_status(
+        self,
+        volume,
+        *,
+        status: str,
+        failures: list[str] | None = None,
+        interval: int | float | None = 2,
+        wait: int | None = None,
+        attribute: str = "status",
+        callback=None,
+    ):
+        self.wait_calls.append(status)
+        self.status = status
+        self.attachments = []
+        volume.status = status
+        volume.attachments = []
+        return volume
 
 
-def attachment_connection(compute: FakeCompute):
-    return SimpleNamespace(compute=compute, block_storage=AttachmentBlockStorage())
+def attachment_connection(compute: FakeCompute, storage: AttachmentBlockStorage | None = None):
+    return SimpleNamespace(
+        compute=compute,
+        block_storage=storage or AttachmentBlockStorage(),
+    )
 
 
 def attachment_request(operation: str) -> ResourceOperationRequest:
@@ -129,21 +191,42 @@ def attachment_request(operation: str) -> ResourceOperationRequest:
     )
 
 
-def test_volume_attachment_attach_uses_compute_proxy() -> None:
+def test_volume_attachment_attach_waits_for_in_use() -> None:
     compute = FakeCompute()
-    attachment, state = _execute(attachment_connection(compute), attachment_request("attach"))
+    storage = AttachmentBlockStorage(status="attaching")
+    attachment, state = _execute(
+        attachment_connection(compute, storage),
+        attachment_request("attach"),
+    )
     assert state is ResourceOperationState.SUCCEEDED
     assert attachment.id == "attachment-1"
     assert compute.attach_calls == [("server-1", "volume-1")]
+    assert storage.wait_calls == ["in-use"]
+
+
+def test_volume_attachment_detach_waits_for_available_before_success() -> None:
+    compute = FakeCompute()
+    storage = AttachmentBlockStorage(
+        status="detaching",
+        attachments=[SimpleNamespace(server_id="server-1", device="/dev/vdc")],
+    )
+    volume, state = _execute(attachment_connection(compute, storage), attachment_request("detach"))
+    assert volume.status == "available"
+    assert volume.attachments == []
+    assert state is ResourceOperationState.SUCCEEDED
+    assert compute.detach_calls == [("server-1", "volume-1", True)]
+    assert storage.wait_calls == ["available"]
 
 
 def test_volume_attachment_detach_is_idempotent() -> None:
     compute = FakeCompute()
     compute.detach_missing = True
-    attachment, state = _execute(attachment_connection(compute), attachment_request("detach"))
-    assert attachment is None
+    storage = AttachmentBlockStorage(status="available", attachments=[])
+    volume, state = _execute(attachment_connection(compute, storage), attachment_request("detach"))
+    assert volume.status == "available"
     assert state is ResourceOperationState.ALREADY_ABSENT
     assert compute.detach_calls == [("server-1", "volume-1", True)]
+    assert storage.wait_calls == []
 
 
 def test_volume_attachment_rejects_cross_project_resources() -> None:

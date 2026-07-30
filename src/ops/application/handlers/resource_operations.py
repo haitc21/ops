@@ -32,6 +32,15 @@ from ops.openstack.errors import normalize_openstack_exception
 from ops.openstack.factory import openstack_connection
 from ops.openstack.inventory import map_resource
 from ops.openstack.scope import ScopeKind, discover_effective_scope
+from ops.openstack.volume_lifecycle import (
+    VOLUME_ATTACH_TARGET_STATUS,
+    VolumeStateConflictError,
+    assert_snapshot_force_for_in_use_volume,
+    assert_volume_deletable,
+    normalize_volume_state_conflict,
+    wait_for_volume_detached,
+    wait_for_volume_status,
+)
 
 
 def _event(
@@ -278,6 +287,23 @@ async def resource_operation(
             HandlerRetryableError(retry_reason="CPS_UNAVAILABLE")
             if exc.retryable
             else HandlerFailedResult()
+        )
+    except VolumeStateConflictError as exc:
+        resource_type = str(getattr(command, "payload", {}).get("resource_type", ""))
+        error = normalize_volume_state_conflict(
+            exc,
+            service=_provider_service_for_resource(resource_type),
+        )
+        if error.retryable:
+            return HandlerRetryableError(error=error, retry_reason="PROVIDER_UNAVAILABLE")
+        return HandlerFailedResult(
+            result_routing_key=OPERATION_FAILED,
+            result_body=_event(
+                command,
+                error.model_dump(mode="json"),
+                "resource.operation.failed",
+                OPERATION_FAILED,
+            ),
         )
     except Exception as exc:
         resource_type = str(getattr(command, "payload", {}).get("resource_type", ""))
@@ -536,10 +562,21 @@ def _execute_volume(
             raise ValueError("volume resize cannot shrink")
         if current_size == requested_size:
             return existing, ResourceOperationState.SUCCEEDED
-        result = proxy.extend_volume(existing, requested_size)
-        return result or existing, ResourceOperationState.SUCCEEDED
+        proxy.extend_volume(existing, requested_size)
+        refreshed = _get_volume(proxy, provider_id)
+        waiter = getattr(proxy, "wait_for_status", None)
+        if callable(waiter):
+            refreshed = waiter(
+                refreshed,
+                status="available",
+                failures=sorted({"error", "error_extending"}),
+                interval=1,
+                wait=300,
+            )
+        return refreshed, ResourceOperationState.SUCCEEDED
 
     if operation == "delete":
+        assert_volume_deletable(existing)
         proxy.delete_volume(existing, ignore_missing=True)
         return None, ResourceOperationState.SUCCEEDED
 
@@ -570,6 +607,7 @@ def _execute_snapshot(
             raise ValueError("snapshot create requires volume_id")
         volume = _get_volume(proxy, str(volume_id))
         _snapshot_owner_check(connection, params, volume)
+        assert_snapshot_force_for_in_use_volume(volume, force=bool(params.get("force", False)))
         if operation == "ensure" and provider_id:
             return _get_snapshot(proxy, provider_id), ResourceOperationState.SUCCEEDED
         name = params.get("name")
@@ -738,13 +776,39 @@ def _execute_volume_attachment(
         raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
     if operation == "attach":
         attachment = compute.create_volume_attachment(server_id, volume_id)
+        volume = wait_for_volume_status(
+            block_storage,
+            block_storage.get_volume(volume_id),
+            target_status=VOLUME_ATTACH_TARGET_STATUS,
+        )
+        device = getattr(attachment, "device", None)
+        if device is None:
+            for item in getattr(volume, "attachments", None) or []:
+                attached_server = getattr(item, "server_id", None) or getattr(
+                    item, "instance_id", None
+                )
+                if attached_server is not None and str(attached_server) == server_id:
+                    device = getattr(item, "device", None)
+                    break
+        if device is not None and getattr(attachment, "device", None) is None:
+            attachment.device = device
         return attachment, ResourceOperationState.SUCCEEDED
     if operation == "detach":
         try:
             compute.delete_volume_attachment(server_id, volume_id, ignore_missing=True)
         except (os_exc.NotFoundException, os_exc.ResourceNotFound):
-            return None, ResourceOperationState.ALREADY_ABSENT
-        return None, ResourceOperationState.SUCCEEDED
+            volume = wait_for_volume_detached(
+                block_storage,
+                server_id=server_id,
+                volume_id=volume_id,
+            )
+            return volume, ResourceOperationState.ALREADY_ABSENT
+        volume = wait_for_volume_detached(
+            block_storage,
+            server_id=server_id,
+            volume_id=volume_id,
+        )
+        return volume, ResourceOperationState.SUCCEEDED
     raise ValueError(f"unsupported volume attachment operation: {operation}")
 
 
