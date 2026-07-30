@@ -2,9 +2,14 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from openstack import exceptions as os_exc
 
 from ops.application.handlers.resource_operations import _execute
-from ops.contracts.messages.resource_operations import ResourceOperationRequest, ScopeKind
+from ops.contracts.messages.resource_operations import (
+    ResourceOperationRequest,
+    ResourceOperationState,
+    ScopeKind,
+)
 
 
 class FakeNetwork:
@@ -210,3 +215,91 @@ def test_floating_ip_associate_checks_port_not_fip_project():
     )
     assert state.value == "SUCCEEDED"
     assert network.updated == [{"port_id": "port-1"}]
+
+
+class FakeFloatingIpNetworkGetIpNotFound(FakeFloatingIpNetwork):
+    def __init__(self, fips):
+        super().__init__()
+        self.fips = fips
+        self.get_ip_calls = 0
+
+    def get_ip(self, resource_id):
+        self.get_ip_calls += 1
+        raise os_exc.NotFoundException()
+
+    def ips(self):
+        return iter(self.fips)
+
+
+def test_floating_ip_associate_falls_back_to_exact_id_from_ips_list():
+    network = FakeFloatingIpNetworkGetIpNotFound(
+        [
+            SimpleNamespace(
+                id="fip-1",
+                floating_network_id="ext-net",
+                port_id=None,
+                project_id="p1",
+            )
+        ]
+    )
+    connection = SimpleNamespace(
+        network=network,
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    result, state = _execute(
+        connection,
+        request(
+            "floating_ip",
+            "associate",
+            {"port_id": "port-1"},
+            provider_resource_id="fip-1",
+        ),
+    )
+    assert network.get_ip_calls == 1
+    assert state == ResourceOperationState.SUCCEEDED
+    assert result.port_id == "port-1"
+    assert network.updated == [{"port_id": "port-1"}]
+
+
+def test_floating_ip_associate_rejects_when_exact_id_missing_from_ips_list():
+    network = FakeFloatingIpNetworkGetIpNotFound(
+        [
+            SimpleNamespace(
+                id="other-fip",
+                floating_network_id="ext-net",
+                port_id=None,
+                project_id="p1",
+            )
+        ]
+    )
+    connection = SimpleNamespace(
+        network=network,
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    with pytest.raises(ValueError, match="floating IP not found"):
+        _execute(
+            connection,
+            request(
+                "floating_ip",
+                "associate",
+                {"port_id": "port-1"},
+                provider_resource_id="fip-1",
+            ),
+        )
+    assert network.get_ip_calls == 1
+    assert network.updated == []
+
+
+def test_floating_ip_release_is_already_absent_when_exact_id_missing_from_ips_list():
+    network = FakeFloatingIpNetworkGetIpNotFound([])
+    connection = SimpleNamespace(
+        network=network,
+        session=SimpleNamespace(auth=SimpleNamespace(project_id="p1")),
+    )
+    result, state = _execute(
+        connection,
+        request("floating_ip", "release", {}, provider_resource_id="fip-missing"),
+    )
+    assert result is None
+    assert state == ResourceOperationState.ALREADY_ABSENT
+    assert network.get_ip_calls == 1

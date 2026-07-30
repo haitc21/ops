@@ -785,6 +785,22 @@ def _network_owner_check(
             raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
 
 
+def _get_floating_ip(proxy: Any, provider_id: str) -> Any:
+    """Resolve a floating IP by exact provider ID.
+
+    Some project-scoped Neutron endpoints reject ``get_ip`` while still
+    listing the same ID via ``ips()``. Fall back to an exact-ID list scan only
+    after ``get_ip`` raises ``NotFoundException``.
+    """
+    try:
+        return proxy.get_ip(provider_id)
+    except os_exc.NotFoundException:
+        for item in proxy.ips():
+            if getattr(item, "id", None) == provider_id:
+                return item
+        raise
+
+
 def _find_network_existing(proxy: Any, kind: str, params: dict[str, Any]) -> Any | None:
     name = params.get("name")
     if not name:
@@ -868,7 +884,7 @@ def _execute_network(
         if not provider_id:
             raise ValueError("provider_resource_id is required")
         try:
-            existing = proxy.get_ip(provider_id)
+            existing = _get_floating_ip(proxy, provider_id)
         except os_exc.NotFoundException:
             return (
                 (None, ResourceOperationState.ALREADY_ABSENT)

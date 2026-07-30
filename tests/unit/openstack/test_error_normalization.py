@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import keystoneauth1.exceptions.connection as ks_exc
 import keystoneauth1.exceptions.http as ks_http
 import pytest
@@ -9,7 +11,12 @@ import requests
 import requests.exceptions as req_exc
 from openstack import exceptions as os_exc
 
-from ops.openstack.errors import normalize_openstack_exception
+from ops.openstack.errors import (
+    normalize_openstack_exception,
+    normalize_waiter_provider_error,
+    normalize_waiter_timeout_error,
+)
+from ops.openstack.waiter import WaiterProviderError, WaiterTimeoutError
 
 
 def _synthetic_secret() -> str:
@@ -329,6 +336,174 @@ def test_direct_request_id_precedence_over_response_header() -> None:
         service="compute",
     )
     assert error.provider_request_id == "req-direct-attribute"
+
+
+def test_waiter_timeout_preserves_openstack_compute_context() -> None:
+    error = normalize_waiter_timeout_error(
+        WaiterTimeoutError("provider state waiter timed out"),
+        service="compute",
+    )
+    assert (error.code, error.category.value, error.retryable) == (
+        "PROVIDER_TIMEOUT",
+        "TIMEOUT",
+        True,
+    )
+    assert error.provider == "OPENSTACK"
+    assert error.provider_service == "compute"
+    assert error.message == "OpenStack provider request timed out"
+
+
+@pytest.mark.parametrize(
+    "fault_message",
+    (
+        "NoValidHost",
+        "NoValidHostWasFound",
+        "No valid host was found.",
+        "No valid host was found",
+    ),
+)
+def test_waiter_provider_error_maps_novalidhost_variants_to_insufficient_capacity(
+    fault_message: str,
+) -> None:
+    resource = SimpleNamespace(
+        id="server-1",
+        status="ERROR",
+        request_ids=("req-nova-create",),
+        fault={
+            "message": fault_message,
+            "code": 500,
+            "details": "Traceback (most recent call last): secret-body",
+        },
+    )
+    exc = WaiterProviderError(
+        "provider resource entered an error state",
+        resource=resource,
+        reason="error_state",
+    )
+
+    error = normalize_waiter_provider_error(exc, service="compute")
+
+    assert (error.code, error.category.value, error.retryable) == (
+        "INSUFFICIENT_CAPACITY",
+        "QUOTA",
+        False,
+    )
+    assert error.provider == "OPENSTACK"
+    assert error.provider_service == "compute"
+    assert error.provider_request_id == "req-nova-create"
+    assert error.message == "OpenStack provider request failed"
+    assert error.details == {
+        "provider_status": "ERROR",
+        "provider_resource_id": "server-1",
+        "provider_fault_code": fault_message,
+        "provider_fault_status": 500,
+    }
+    dumped = error.model_dump_json()
+    assert "traceback must not leak" not in dumped
+    assert "secret-body" not in dumped
+
+
+def test_waiter_provider_error_maps_live_novalidhost_fault_shape() -> None:
+    """Regression for live Nova controller fault: message text, not exception class name."""
+    resource = SimpleNamespace(
+        id="server-live",
+        status="ERROR",
+        request_ids=("req-nova-scheduler",),
+        fault={
+            "message": "No valid host was found.",
+            "code": 500,
+            "details": "Traceback (most recent call last): secret-body",
+        },
+    )
+    exc = WaiterProviderError(
+        "provider resource entered an error state",
+        resource=resource,
+        reason="error_state",
+    )
+
+    error = normalize_waiter_provider_error(exc, service="compute")
+
+    assert (error.code, error.category.value, error.retryable) == (
+        "INSUFFICIENT_CAPACITY",
+        "QUOTA",
+        False,
+    )
+    assert error.details == {
+        "provider_status": "ERROR",
+        "provider_resource_id": "server-live",
+        "provider_fault_code": "No valid host was found.",
+        "provider_fault_status": 500,
+    }
+    dumped = error.model_dump_json()
+    assert "secret-body" not in dumped
+    assert "Traceback" not in dumped
+
+
+def test_waiter_provider_error_does_not_misclassify_unrelated_host_fault() -> None:
+    resource = SimpleNamespace(
+        id="server-2",
+        status="ERROR",
+        fault={
+            "message": "Invalid input received: unknown host parameter",
+            "code": 400,
+        },
+    )
+    exc = WaiterProviderError(
+        "provider resource entered an error state",
+        resource=resource,
+        reason="error_state",
+    )
+
+    error = normalize_waiter_provider_error(exc, service="compute")
+
+    assert (error.code, error.category.value, error.retryable) == (
+        "INVALID_RESOURCE_STATE",
+        "CONFLICT",
+        False,
+    )
+
+
+def test_waiter_provider_error_maps_generic_error_state() -> None:
+    resource = SimpleNamespace(
+        id="server-2",
+        status="ERROR",
+        fault={"message": "BuildAbortException", "code": 500},
+    )
+    exc = WaiterProviderError(
+        "provider resource entered an error state",
+        resource=resource,
+        reason="error_state",
+    )
+
+    error = normalize_waiter_provider_error(exc, service="compute")
+
+    assert (error.code, error.category.value, error.retryable) == (
+        "INVALID_RESOURCE_STATE",
+        "CONFLICT",
+        False,
+    )
+    assert error.details["provider_fault_code"] == "BuildAbortException"
+
+
+def test_waiter_provider_error_maps_deleted_resource() -> None:
+    resource = SimpleNamespace(id="server-3", status="DELETED")
+    exc = WaiterProviderError(
+        "provider resource disappeared while waiting",
+        resource=resource,
+        reason="deleted",
+    )
+
+    error = normalize_waiter_provider_error(exc, service="compute")
+
+    assert (error.code, error.category.value, error.retryable) == (
+        "INVALID_RESOURCE_STATE",
+        "CONFLICT",
+        False,
+    )
+    assert error.details == {
+        "provider_status": "DELETED",
+        "provider_resource_id": "server-3",
+    }
 
 
 def test_empty_request_ids_falls_back_to_response_header() -> None:

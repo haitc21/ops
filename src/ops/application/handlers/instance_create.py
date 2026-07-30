@@ -14,16 +14,21 @@ from openstack import exceptions as os_exc
 from ops.application.credential_resolver import CpsResolutionError, CredentialResolver
 from ops.application.handlers.registry import TypedHandlerFn
 from ops.config import Settings
-from ops.contracts.errors import CommonError, ErrorCategory
+from ops.contracts.errors import CommonError
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.envelope import MessageEnvelope
 from ops.contracts.messages.instance import InstanceAction, InstanceCommandPayload
 from ops.contracts.messages.types import OPERATION_COMPLETED, OPERATION_FAILED, OPERATION_PROGRESS
 from ops.messaging.consumer import HandlerFailedResult, HandlerRetryableError, HandlerSuccess
 from ops.observability.redaction import redact_mapping
-from ops.openstack.errors import normalize_openstack_exception
+from ops.openstack.errors import (
+    normalize_openstack_exception,
+    normalize_waiter_provider_error,
+    normalize_waiter_timeout_error,
+)
 from ops.openstack.factory import openstack_connection
 from ops.openstack.inventory import collect_instance_relationships, map_resource
+from ops.openstack.scope import discover_effective_scope
 from ops.openstack.waiter import (
     WaiterConfig,
     WaiterProviderError,
@@ -116,6 +121,175 @@ def _failure(command: MessageEnvelope, error: CommonError) -> bytes:
     return _event(
         command, OPERATION_FAILED, {"error": error.model_dump(mode="json")}, "instance.failed"
     )
+
+
+def _is_compute_port_device_owner(device_owner: str | None) -> bool:
+    if not device_owner:
+        return True
+    return str(device_owner).startswith("compute:")
+
+
+def _mapped_port_id(port: dict[str, Any]) -> str:
+    return str(port["provider_resource_id"])
+
+
+def _mapped_port_network_id(port: dict[str, Any]) -> str | None:
+    network_id = (port.get("attributes") or {}).get("network_id")
+    return str(network_id) if network_id else None
+
+
+def _mapped_port_project_id(port: dict[str, Any]) -> str | None:
+    project_id = port.get("project_provider_resource_id")
+    if project_id is not None:
+        return str(project_id)
+    attrs = port.get("attributes") or {}
+    owner = attrs.get("project_id") or attrs.get("tenant_id")
+    return str(owner) if owner else None
+
+
+def _mapped_port_device_id(port: dict[str, Any]) -> str | None:
+    device_id = (port.get("attributes") or {}).get("device_id")
+    return str(device_id) if device_id else None
+
+
+def _mapped_port_device_owner(port: dict[str, Any]) -> str | None:
+    device_owner = (port.get("attributes") or {}).get("device_owner")
+    return str(device_owner) if device_owner else None
+
+
+def _sdk_port_project_id(port: Any) -> str | None:
+    owner = getattr(port, "project_id", None) or getattr(port, "tenant_id", None)
+    return str(owner) if owner else None
+
+
+def _port_in_network_scope(
+    *,
+    port_id: str,
+    network_id: str | None,
+    request: Any,
+) -> bool:
+    explicit_ports = {str(value) for value in request.port_provider_resource_ids}
+    explicit_networks = {str(value) for value in request.network_provider_resource_ids}
+    if explicit_ports:
+        return port_id in explicit_ports
+    if explicit_networks:
+        return network_id in explicit_networks
+    return False
+
+
+def _mapped_port_is_instance_port(
+    port: dict[str, Any],
+    *,
+    instance_id: str,
+    project_id: str | None,
+) -> bool:
+    if _mapped_port_device_id(port) != str(instance_id):
+        return False
+    if not _is_compute_port_device_owner(_mapped_port_device_owner(port)):
+        return False
+    if project_id:
+        owner = _mapped_port_project_id(port)
+        if owner and owner != str(project_id):
+            return False
+    return True
+
+
+def _sdk_port_is_instance_port(
+    port: Any,
+    *,
+    instance_id: str,
+    project_id: str | None,
+) -> bool:
+    if str(getattr(port, "device_id", "") or "") != str(instance_id):
+        return False
+    if not _is_compute_port_device_owner(getattr(port, "device_owner", None)):
+        return False
+    if project_id:
+        owner = _sdk_port_project_id(port)
+        if owner and owner != str(project_id):
+            return False
+    return True
+
+
+def _mapped_port_is_suitable(
+    port: dict[str, Any],
+    *,
+    instance_id: str,
+    request: Any,
+    project_id: str | None,
+) -> bool:
+    if not _mapped_port_is_instance_port(port, instance_id=instance_id, project_id=project_id):
+        return False
+    return _port_in_network_scope(
+        port_id=_mapped_port_id(port),
+        network_id=_mapped_port_network_id(port),
+        request=request,
+    )
+
+
+def _sdk_port_is_suitable(
+    port: Any,
+    *,
+    instance_id: str,
+    request: Any,
+    project_id: str | None,
+) -> bool:
+    if not _sdk_port_is_instance_port(port, instance_id=instance_id, project_id=project_id):
+        return False
+    network_id = getattr(port, "network_id", None)
+    return _port_in_network_scope(
+        port_id=str(port.id),
+        network_id=str(network_id) if network_id else None,
+        request=request,
+    )
+
+
+def _resolve_floating_ip_port(
+    connection: Any,
+    instance_id: str,
+    request: Any,
+    *,
+    collected_ports: list[dict[str, Any]],
+) -> str:
+    """Pick a Neutron port on the instance for floating IP association."""
+    project_id = discover_effective_scope(connection).get("project_id")
+    for port in collected_ports:
+        if _mapped_port_is_suitable(
+            port, instance_id=instance_id, request=request, project_id=project_id
+        ):
+            return _mapped_port_id(port)
+    network = getattr(connection, "network", None)
+    if network is None:
+        raise ValueError("network service is unavailable")
+    for port in network.ports(device_id=instance_id):
+        if _sdk_port_is_suitable(
+            port, instance_id=instance_id, request=request, project_id=project_id
+        ):
+            return str(port.id)
+    raise ValueError("no suitable port found for floating IP association")
+
+
+def _instance_port_ids(
+    connection: Any,
+    instance_id: str,
+    collected_ports: list[dict[str, Any]],
+) -> set[str]:
+    project_id = discover_effective_scope(connection).get("project_id")
+    port_ids = {
+        _mapped_port_id(port)
+        for port in collected_ports
+        if _mapped_port_is_instance_port(port, instance_id=instance_id, project_id=project_id)
+    }
+    if port_ids:
+        return port_ids
+    network = getattr(connection, "network", None)
+    if network is None:
+        return set()
+    return {
+        str(port.id)
+        for port in network.ports(device_id=instance_id)
+        if _sdk_port_is_instance_port(port, instance_id=instance_id, project_id=project_id)
+    }
 
 
 def _resolve_security_groups_for_nova(connection: Any, sg_ids: list[str]) -> list[dict[str, str]]:
@@ -310,11 +484,21 @@ async def instance_create(
                     )
                 if floating is None:
                     raise RuntimeError("floating IP allocation did not return a resource")
-                if not getattr(floating, "port_id", None):
+                existing_port_id = getattr(floating, "port_id", None)
+                instance_ports = _instance_port_ids(connection, str(instance.id), ports)
+                if existing_port_id and str(existing_port_id) in instance_ports:
+                    pass
+                else:
+                    port_id = _resolve_floating_ip_port(
+                        connection,
+                        str(instance.id),
+                        request,
+                        collected_ports=ports,
+                    )
                     await _sdk_call(
-                        compute.add_floating_ip_to_server,
-                        instance,
-                        floating.floating_ip_address,
+                        connection.network.update_ip,
+                        floating,
+                        port_id=port_id,
                         timeout_seconds=settings.openstack_timeout_seconds,
                     )
                 floating_ip = str(floating.floating_ip_address)
@@ -350,13 +534,10 @@ async def instance_create(
             else HandlerFailedResult()
         )
     except (WaiterTimeoutError, WaiterProviderError) as exc:
-        error = CommonError(
-            code="PROVIDER_TIMEOUT" if isinstance(exc, WaiterTimeoutError) else "PROVIDER_CONFLICT",
-            message="Provider instance did not reach the requested state",
-            category=ErrorCategory.TIMEOUT
+        error = (
+            normalize_waiter_timeout_error(exc, service="compute")
             if isinstance(exc, WaiterTimeoutError)
-            else ErrorCategory.CONFLICT,
-            retryable=isinstance(exc, WaiterTimeoutError),
+            else normalize_waiter_provider_error(exc, service="compute")
         )
         return (
             HandlerRetryableError(retry_reason="PROVIDER_TIMEOUT")

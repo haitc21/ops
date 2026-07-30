@@ -16,6 +16,17 @@ class WaiterTimeoutError(TimeoutError):
 class WaiterProviderError(RuntimeError):
     """Provider resource entered an unrecoverable state while waiting."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        resource: Any | None = None,
+        reason: str = "error_state",
+    ) -> None:
+        super().__init__(message)
+        self.resource = resource
+        self.reason = reason
+
 
 @dataclass(frozen=True, slots=True)
 class WaiterConfig:
@@ -45,9 +56,17 @@ async def wait_for_state(
         if state in config.target_states:
             return resource
         if state in config.terminal_error_states:
-            raise WaiterProviderError("provider resource entered an error state")
+            raise WaiterProviderError(
+                "provider resource entered an error state",
+                resource=resource,
+                reason="error_state",
+            )
         if state in config.deleted_states:
-            raise WaiterProviderError("provider resource disappeared while waiting")
+            raise WaiterProviderError(
+                "provider resource disappeared while waiting",
+                resource=resource,
+                reason="deleted",
+            )
         remaining = deadline - monotonic()
         if remaining <= 0:
             raise WaiterTimeoutError("provider state waiter timed out")
@@ -78,7 +97,11 @@ async def wait_for_deleted(
         if state in config.deleted_states:
             return
         if state in config.terminal_error_states:
-            raise WaiterProviderError("provider resource entered an error state")
+            raise WaiterProviderError(
+                "provider resource entered an error state",
+                resource=resource,
+                reason="error_state",
+            )
         remaining = deadline - monotonic()
         if remaining <= 0:
             raise WaiterTimeoutError("provider deletion waiter timed out")

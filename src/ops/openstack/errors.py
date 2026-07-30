@@ -2,14 +2,39 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import keystoneauth1.exceptions.connection as ks_exc
 import requests.exceptions as req_exc
 from openstack import exceptions as os_exc
 
 from ops.contracts.errors import CommonError, ErrorCategory
+from ops.openstack.waiter import WaiterProviderError, WaiterTimeoutError
 
 _PUBLIC_MESSAGE = "OpenStack provider request failed"
+_WAITER_TIMEOUT_MESSAGE = "OpenStack provider request timed out"
 _ALLOWLISTED_REQUEST_ID_HEADERS = ("x-openstack-request-id", "x-request-id")
+_INSUFFICIENT_CAPACITY_FAULTS = frozenset(
+    {
+        "novalidhost",
+        "novalidhostwasfound",
+        "no valid host was found",
+    }
+)
+
+
+def _normalize_insufficient_capacity_fault_message(message: str) -> str:
+    normalized = message.strip()
+    while normalized.endswith("."):
+        normalized = normalized[:-1].strip()
+    return normalized.casefold()
+
+
+def _is_insufficient_capacity_fault(fault_code: str | None) -> bool:
+    if not isinstance(fault_code, str) or not fault_code.strip():
+        return False
+    normalized = _normalize_insufficient_capacity_fault_message(fault_code)
+    return normalized in _INSUFFICIENT_CAPACITY_FAULTS
 
 
 def _http_status(exc: BaseException) -> int | None:
@@ -47,6 +72,96 @@ def _request_id(exc: BaseException) -> str | None:
     if response is not None:
         return _request_id_from_response_headers(response)
     return None
+
+
+def _request_id_from_resource(resource: object | None) -> str | None:
+    if resource is None:
+        return None
+    direct = getattr(resource, "request_id", None)
+    if isinstance(direct, str) and direct:
+        return direct
+    many = getattr(resource, "request_ids", None)
+    if isinstance(many, list | tuple) and many and isinstance(many[0], str) and many[0]:
+        return many[0]
+    return None
+
+
+def _provider_resource_id(resource: object | None) -> str | None:
+    if resource is None:
+        return None
+    resource_id = getattr(resource, "id", None)
+    if resource_id is None:
+        return None
+    return str(resource_id)
+
+
+def _sanitize_provider_fault(fault: object) -> dict[str, Any]:
+    if not isinstance(fault, dict):
+        return {}
+    sanitized: dict[str, Any] = {}
+    message = fault.get("message")
+    if isinstance(message, str) and message.strip():
+        sanitized["provider_fault_code"] = message.strip()
+    code = fault.get("code")
+    if isinstance(code, int):
+        sanitized["provider_fault_status"] = code
+    return sanitized
+
+
+def _waiter_provider_error_mapping(*, fault_code: str | None) -> tuple[str, ErrorCategory]:
+    if _is_insufficient_capacity_fault(fault_code):
+        return "INSUFFICIENT_CAPACITY", ErrorCategory.QUOTA
+    return "INVALID_RESOURCE_STATE", ErrorCategory.CONFLICT
+
+
+def normalize_waiter_timeout_error(
+    exc: WaiterTimeoutError,
+    *,
+    service: str | None = None,
+) -> CommonError:
+    return CommonError(
+        code="PROVIDER_TIMEOUT",
+        message=_WAITER_TIMEOUT_MESSAGE,
+        category=ErrorCategory.TIMEOUT,
+        retryable=True,
+        provider="OPENSTACK",
+        provider_service=service,
+        provider_request_id=None,
+        details={},
+    )
+
+
+def normalize_waiter_provider_error(
+    exc: WaiterProviderError,
+    *,
+    service: str | None = None,
+) -> CommonError:
+    resource = exc.resource
+    status = str(getattr(resource, "status", "")).upper() or None
+    fault = _sanitize_provider_fault(getattr(resource, "fault", None))
+    fault_code = fault.get("provider_fault_code")
+    if isinstance(fault_code, str):
+        resolved_fault_code: str | None = fault_code
+    else:
+        resolved_fault_code = None
+    code, category = _waiter_provider_error_mapping(fault_code=resolved_fault_code)
+    details: dict[str, Any] = {}
+    if status is not None:
+        details["provider_status"] = status
+    resource_id = _provider_resource_id(resource)
+    if resource_id is not None:
+        details["provider_resource_id"] = resource_id
+    details.update(fault)
+    return CommonError(
+        code=code,
+        message=_PUBLIC_MESSAGE,
+        category=category,
+        retryable=False,
+        provider="OPENSTACK",
+        provider_service=service,
+        provider_request_id=_request_id_from_resource(resource),
+        details=details,
+    )
 
 
 def _mapping_from_status(status: int) -> tuple[str, ErrorCategory, bool]:

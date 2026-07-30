@@ -45,16 +45,26 @@ def test_waiter_reaches_target_with_injected_clock_and_sleeper() -> None:
 
 
 def test_waiter_distinguishes_provider_error() -> None:
-    async def fetch() -> SimpleNamespace:
-        return SimpleNamespace(status="ERROR")
+    resource = SimpleNamespace(
+        id="server-1",
+        status="ERROR",
+        fault={"message": "NoValidHost", "code": 500, "details": "traceback must not leak"},
+    )
 
-    with pytest.raises(WaiterProviderError):
+    async def fetch() -> SimpleNamespace:
+        return resource
+
+    with pytest.raises(WaiterProviderError) as exc_info:
         asyncio.run(
             wait_for_state(
                 fetch,
                 config=WaiterConfig(target_states=frozenset({"ACTIVE"})),
             )
         )
+
+    error = exc_info.value
+    assert error.resource is resource
+    assert error.reason == "error_state"
 
 
 def test_waiter_times_out_without_retrying_command() -> None:
