@@ -17,6 +17,11 @@ VOLUME_WAIT_FAILURES = frozenset(
     {"error", "error_deleting", "error_attaching", "error_detaching", "error_extending"}
 )
 DEFAULT_VOLUME_WAIT_SECONDS = 300
+# Nova can return ConflictNovaUsingAttachment while libvirt/Cinder are still
+# converging after the detach request. Retry Nova's idempotent delete before
+# surfacing the provider conflict; never delete the Cinder attachment directly.
+VOLUME_DETACH_RETRY_ATTEMPTS = 3
+VOLUME_DETACH_RETRY_INTERVAL_SECONDS = 2
 
 
 class VolumeStateConflictError(RuntimeError):

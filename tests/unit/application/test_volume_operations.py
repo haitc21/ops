@@ -122,6 +122,7 @@ class FakeCompute:
         self.attach_calls: list[tuple[str, str]] = []
         self.detach_calls: list[tuple[str, str, bool]] = []
         self.detach_missing = False
+        self.detach_conflicts = 0
 
     def get_server(self, server_id: str):
         return SimpleNamespace(id=server_id, project_id="project-1")
@@ -132,6 +133,9 @@ class FakeCompute:
 
     def delete_volume_attachment(self, server_id: str, volume_id: str, *, ignore_missing: bool):
         self.detach_calls.append((server_id, volume_id, ignore_missing))
+        if self.detach_conflicts:
+            self.detach_conflicts -= 1
+            raise os_exc.ConflictException("Nova is still using attachment")
         if self.detach_missing:
             raise os_exc.NotFoundException()
 
@@ -216,6 +220,37 @@ def test_volume_attachment_detach_waits_for_available_before_success() -> None:
     assert state is ResourceOperationState.SUCCEEDED
     assert compute.detach_calls == [("server-1", "volume-1", True)]
     assert storage.wait_calls == ["available"]
+
+
+def test_volume_attachment_detach_retries_transient_conflict(monkeypatch) -> None:
+    compute = FakeCompute()
+    compute.detach_conflicts = 1
+    storage = AttachmentBlockStorage(
+        status="detaching",
+        attachments=[SimpleNamespace(server_id="server-1", device="/dev/vdc")],
+    )
+    monkeypatch.setattr(
+        "ops.application.handlers.resource_operations.time.sleep", lambda _seconds: None
+    )
+
+    volume, state = _execute(attachment_connection(compute, storage), attachment_request("detach"))
+
+    assert state is ResourceOperationState.SUCCEEDED
+    assert volume.status == "available"
+    assert len(compute.detach_calls) == 2
+
+
+def test_volume_attachment_detach_surfaces_exhausted_conflicts(monkeypatch) -> None:
+    compute = FakeCompute()
+    compute.detach_conflicts = 3
+    monkeypatch.setattr(
+        "ops.application.handlers.resource_operations.time.sleep", lambda _seconds: None
+    )
+
+    with pytest.raises(os_exc.ConflictException):
+        _execute(attachment_connection(compute), attachment_request("detach"))
+
+    assert len(compute.detach_calls) == 3
 
 
 def test_volume_attachment_detach_is_idempotent() -> None:

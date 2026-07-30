@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import time
 import uuid
 from typing import Any
 
@@ -34,6 +35,8 @@ from ops.openstack.inventory import map_resource
 from ops.openstack.scope import ScopeKind, discover_effective_scope
 from ops.openstack.volume_lifecycle import (
     VOLUME_ATTACH_TARGET_STATUS,
+    VOLUME_DETACH_RETRY_ATTEMPTS,
+    VOLUME_DETACH_RETRY_INTERVAL_SECONDS,
     VolumeStateConflictError,
     assert_snapshot_force_for_in_use_volume,
     assert_volume_deletable,
@@ -795,7 +798,14 @@ def _execute_volume_attachment(
         return attachment, ResourceOperationState.SUCCEEDED
     if operation == "detach":
         try:
-            compute.delete_volume_attachment(server_id, volume_id, ignore_missing=True)
+            for attempt in range(VOLUME_DETACH_RETRY_ATTEMPTS):
+                try:
+                    compute.delete_volume_attachment(server_id, volume_id, ignore_missing=True)
+                    break
+                except os_exc.ConflictException:
+                    if attempt == VOLUME_DETACH_RETRY_ATTEMPTS - 1:
+                        raise
+                    time.sleep(VOLUME_DETACH_RETRY_INTERVAL_SECONDS)
         except (os_exc.NotFoundException, os_exc.ResourceNotFound):
             volume = wait_for_volume_detached(
                 block_storage,
