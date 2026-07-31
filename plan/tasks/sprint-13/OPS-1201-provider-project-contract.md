@@ -1,6 +1,8 @@
 # OPS-1201 — Provider-owned credential and project-owner contract
 
-**Status:** Ready  
+**Status:** Done
+**Active backlog:** No — connection-only resolution, project-owner
+normalization, contract parity, and redaction gates are complete.
 **Points:** 8  
 **Depends on:** CPS-1201, CPS-1202  
 **Design:** `../../../../cps/docs/superpowers/specs/2026-07-26-provider-tenancy-authorization-design.md`

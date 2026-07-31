@@ -1,6 +1,7 @@
 # Sprint 13 — Provider resolution and authorization decision propagation
 
-**Status:** Ready for implementation  
+**Status:** Done for approved CPS/OPS scope — OPS-1201/1203 complete; OPS-1202
+deferred with Active backlog: no because its TMS dependency is excluded
 **Dates:** 2026-09-19 to 2026-10-02  
 **Capacity:** 13 OPS points  
 **Sprint Goal:** OPS resolves provider access without a credential identifier and executes only commands carrying a valid, secret-safe CPS authorization decision context.
@@ -14,16 +15,16 @@
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-1201 Provider-owned credential contract | 8 | OPS | CPS-1201, CPS-1202 | Ready |
-| OPS-1202 Authorization decision command context | 5 | OPS | CPS-1203 | Ready |
+| OPS-1201 Provider-owned credential contract | 8 | OPS | CPS-1201, CPS-1202 | Done — Active backlog: no |
+| OPS-1202 Authorization decision command context | 5 | OPS | CPS-1203 | Deferred — Active backlog: no |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [OPS-1201](../tasks/sprint-13/OPS-1201-provider-project-contract.md) | Connection-only provider resolution and normalized project ownership | CPS-1201, CPS-1202 | Ready |
-| [OPS-1202](../tasks/sprint-13/OPS-1202-authorization-context.md) | Safe authorization context validation and replay behavior | CPS-1203, OPS-1201 | Ready |
-| OPS-1203 | Converge creator admin role on newly-created Keystone domain/project scopes | CPS-1201 | In progress |
+| [OPS-1201](../tasks/sprint-13/OPS-1201-provider-project-contract.md) | Connection-only provider resolution and normalized project ownership | CPS-1201, CPS-1202 | Done — Active backlog: no |
+| [OPS-1202](../tasks/sprint-13/OPS-1202-authorization-context.md) | Safe authorization context validation and replay behavior | CPS-1203, OPS-1201 | Deferred — Active backlog: no |
+| OPS-1203 | Converge creator admin role on newly-created Keystone domain/project scopes | CPS-1201 | Done — Active backlog: no |
 
 ## Execution sequence
 
@@ -47,9 +48,9 @@
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Legacy queued commands contain credential references | CPS/OPS | Version contract, reject unsupported legacy commands explicitly, drain queue before rollout | Open |
-| SDK services expose project ownership under different fields | OPS | Central owner mapper with fixture coverage for each service | Open |
-| Authorization context could be mistaken for OPS policy authority | OPS | Treat it as CPS-issued execution precondition; never evaluate tenant roles in OPS | Open |
+| Legacy queued commands contain credential references | CPS/OPS | Version contract, reject unsupported legacy commands explicitly, drain queue before rollout | Resolved |
+| SDK services expose project ownership under different fields | OPS | Central owner mapper with fixture coverage for each service | Resolved |
+| Authorization context could be mistaken for OPS policy authority | OPS | Treat it as CPS-issued execution precondition; never evaluate tenant roles in OPS | Deferred — excluded TMS scope |
 
 ## Review evidence
 

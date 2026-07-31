@@ -1,6 +1,7 @@
 # OPS-1202 — Authorization decision command context
 
-**Status:** Ready  
+**Status:** Deferred — excluded TMS-dependent authorization scope
+**Active backlog:** No
 **Points:** 5  
 **Depends on:** CPS-1203, OPS-1201  
 **Design:** `../../../../cps/docs/superpowers/specs/2026-07-26-provider-tenancy-authorization-design.md`

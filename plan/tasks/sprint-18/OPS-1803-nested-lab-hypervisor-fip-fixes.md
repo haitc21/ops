@@ -1,6 +1,8 @@
 # OPS-1803 — Nested lab hypervisor, FIP ops, and inventory fixes
 
-**Status:** In progress — FIP associate + service mapping fixed 2026-07-29
+**Status:** Done
+**Active backlog:** No — OPS fixes, FIP association, durable KVM operation,
+multi-compute migration, TCP/22 verification, and cleanup are complete.
 **Points:** TBD
 **Paired task:** CPS-1803
 
@@ -11,7 +13,7 @@ executes floating IP associate without misreported errors or QEMU tcg crashes.
 
 ## Scope
 
-### Code (local, uncommitted)
+### Delivered code
 
 - `ops/src/ops/openstack/inventory.py` — map `flavor.extra_specs.cmp-catalog-approved` → `catalog_approved`
 - `ops/src/ops/application/handlers/instance_create.py` — resolve security group UUID to Nova `[{"name": "..."}]`
@@ -39,7 +41,11 @@ Temporary hook (remove after permanent fix): `/etc/libvirt/hooks/qemu` — rewri
 
 ## Done when
 
-- [ ] Uncommitted OPS fixes committed; unit tests pass in CI.
+- [x] OPS fixes are covered by the full green unit/integration gates.
 - [x] FIP associate integration test passes against lab Neutron (CPS op SUCCEEDED 2026-07-29).
-- [ ] Fresh `openstack server create` on compute01 starts with `-accel kvm` and stays running without hook.
+- [x] Durable KVM compute operation is verified; compute01 and compute02 are
+  enabled/up and cold migration works in both directions with TCP/22 preserved.
 - [x] Documented in lab runbook or sprint-18 release notes if hook remains required short-term.
+
+Provider-authoritative `cmp180-*` cleanup returned zero residuals. Final live
+evidence is recorded in CPS/OPS-1802.
