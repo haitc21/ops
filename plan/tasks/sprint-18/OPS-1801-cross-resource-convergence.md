@@ -1,6 +1,8 @@
 # OPS-1801 — Cross-resource convergence and recovery
 
-**Status:** In progress
+**Status:** Done
+**Active backlog:** No — handler convergence, deterministic errors, and
+messaging recovery are covered by the automated suites.
 **Points:** 13
 **Paired task:** CPS-1801
 
@@ -39,3 +41,23 @@ uv run pytest tests/unit/application/test_network_operations.py \
 
 - CPS durable operation persistence (owned by CPS-1801).
 - Console access and TMS authorization.
+- Physical-infrastructure acceptance.
+
+## Verification evidence
+
+- Network validation and provider-service mapping:
+  `tests/unit/application/test_network_operations.py` and
+  `test_provider_service_mapping.py`.
+- Replay-safe volume attachment, snapshot, and keypair mutations:
+  `test_volume_operations.py`, `test_snapshot_operations.py`, and
+  `test_keypair_operations.py`.
+- Resize/rebuild recovery without reissuing an already completed provider
+  mutation: `test_instance_action.py`.
+- Retry exhaustion, DLQ routing, graceful shutdown, redelivery, and reconnect:
+  `tests/integration/messaging/test_ack_policy.py` and
+  `test_graceful_shutdown.py`.
+- Real-cloud resource results and cleanup are recorded by the paired CPS task
+  and its linked Sprint 3, 16, 17, and volume/snapshot runbook evidence.
+
+No OPS-1801-specific live gate remains. Migration rehearsal and release-tag
+checksum are owned by OPS-1802; console is superseded.
