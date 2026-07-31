@@ -127,6 +127,78 @@ def test_security_rule_rejects_public_ingress_by_default():
         )
 
 
+def test_public_egress_is_not_treated_as_public_ingress():
+    class SecurityNetwork(FakeNetwork):
+        def get_security_group(self, resource_id):
+            return SimpleNamespace(id=resource_id, project_id="p1")
+
+        def create_security_group_rule(self, **kwargs):
+            return SimpleNamespace(id="rule-1", **kwargs)
+
+    connection = SimpleNamespace(
+        network=SecurityNetwork(), session=SimpleNamespace(auth=SimpleNamespace(project_id="p1"))
+    )
+    result, state = _execute(
+        connection,
+        request(
+            "security_group_rule",
+            "create",
+            {
+                "security_group_id": "sg-1",
+                "direction": "egress",
+                "remote_ip_prefix": "0.0.0.0/0",
+                "project_id": "p1",
+            },
+        ),
+    )
+    assert result.id == "rule-1"
+    assert state is ResourceOperationState.SUCCEEDED
+
+
+def test_network_quota_is_rechecked_before_provider_mutation():
+    class QuotaNetwork(FakeNetwork):
+        def get_quota(self, _project_id):
+            return SimpleNamespace(networks=1)
+
+    network = QuotaNetwork()
+    network.items.append(SimpleNamespace(id="net-existing", name="one", project_id="p1"))
+    connection = SimpleNamespace(
+        network=network, session=SimpleNamespace(auth=SimpleNamespace(project_id="p1"))
+    )
+    with pytest.raises(ValueError, match="NETWORK_QUOTA_EXCEEDED"):
+        _execute(
+            connection,
+            request("network", "create", {"name": "two", "project_id": "p1"}),
+        )
+
+
+def test_subnet_create_rechecks_parent_network_ownership():
+    class SubnetNetwork(FakeNetwork):
+        def get_network(self, resource_id):
+            return SimpleNamespace(id=resource_id, project_id="p2")
+
+        def create_subnet(self, **kwargs):
+            return SimpleNamespace(id="subnet-1", **kwargs)
+
+    connection = SimpleNamespace(
+        network=SubnetNetwork(), session=SimpleNamespace(auth=SimpleNamespace(project_id="p1"))
+    )
+    with pytest.raises(ValueError, match="PROJECT_OWNERSHIP_MISMATCH"):
+        _execute(
+            connection,
+            request(
+                "subnet",
+                "create",
+                {
+                    "name": "foreign",
+                    "network_id": "net-foreign",
+                    "cidr": "10.0.0.0/24",
+                    "project_id": "p1",
+                },
+            ),
+        )
+
+
 class FakeFloatingIpNetwork:
     def __init__(self):
         self.updated = []

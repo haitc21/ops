@@ -910,6 +910,11 @@ def _execute_network(
         if not relation:
             raise ValueError("subnet_id or port_id is required")
         router = proxy.get_router(router_id)
+        _network_owner_check(connection, params, router)
+        if relation.get("subnet_id"):
+            _network_owner_check(connection, params, proxy.get_subnet(str(relation["subnet_id"])))
+        if relation.get("port_id"):
+            _network_owner_check(connection, params, proxy.get_port(str(relation["port_id"])))
         method_name = (
             "add_interface_to_router"
             if operation in {"ensure", "create", "add"}
@@ -936,6 +941,13 @@ def _execute_network(
             if not network_id:
                 raise ValueError("floating_network_id is required")
             _network_owner_check(connection, params)
+            external_network = proxy.get_network(str(network_id))
+            if not bool(
+                getattr(external_network, "is_router_external", False)
+                or getattr(external_network, "router_external", False)
+            ):
+                raise ValueError("floating IP network must be external")
+            _network_quota_check(connection, proxy, "floating_ip", params)
             existing = next(
                 (
                     item
@@ -989,6 +1001,15 @@ def _execute_network(
     deleter = getattr(proxy, f"delete_{kind}", None)
     if operation in {"create", "ensure"}:
         _network_owner_check(connection, params)
+        if kind in {"subnet", "port"}:
+            _network_owner_check(connection, params, proxy.get_network(str(params["network_id"])))
+        if kind == "security_group_rule":
+            _network_owner_check(
+                connection,
+                params,
+                proxy.get_security_group(str(params["security_group_id"])),
+            )
+        _network_quota_check(connection, proxy, kind, params)
         existing = _find_network_existing(proxy, kind, params) if operation == "ensure" else None
         if existing is not None:
             return existing, ResourceOperationState.SUCCEEDED
@@ -1026,7 +1047,9 @@ def _validate_network_parameters(kind: str, operation: str, params: dict[str, An
         raise ValueError("network_id is required")
     if kind == "subnet" and not params.get("cidr"):
         raise ValueError("cidr is required")
-    if kind == "network" and params.get("external") is True:
+    if kind == "network" and any(
+        params.get(key) is True for key in ("external", "is_router_external", "router:external")
+    ):
         raise ValueError("external network mutation is administrator-only")
     if kind == "subnet":
         try:
@@ -1072,8 +1095,53 @@ def _validate_network_parameters(kind: str, operation: str, params: dict[str, An
         protocol = params.get("protocol")
         if protocol is not None and not isinstance(protocol, str):
             raise ValueError("protocol must be a string")
-        if params.get("remote_ip_prefix") in {"0.0.0.0/0", "::/0"}:
-            raise ValueError("public ingress rules require administrator policy")
+        remote_prefix = params.get("remote_ip_prefix")
+        if remote_prefix is not None:
+            try:
+                remote_network = ipaddress.ip_network(str(remote_prefix), strict=False)
+            except ValueError as exc:
+                raise ValueError("remote_ip_prefix must be a valid network") from exc
+            if direction == "ingress" and remote_network.prefixlen == 0:
+                raise ValueError("public ingress rules require administrator policy")
+
+
+def _network_quota_check(
+    connection: Any,
+    proxy: Any,
+    kind: str,
+    params: dict[str, Any],
+) -> None:
+    """Recheck Neutron limits immediately before a create mutation."""
+    get_quota = getattr(proxy, "get_quota", None)
+    plural = {
+        "network": "networks",
+        "subnet": "subnets",
+        "router": "routers",
+        "port": "ports",
+        "security_group": "security_groups",
+        "security_group_rule": "security_group_rules",
+        "floating_ip": "floating_ips",
+    }.get(kind)
+    if not callable(get_quota) or plural is None:
+        return
+    project_id = params.get("project_id") or discover_effective_scope(connection).get("project_id")
+    if not project_id:
+        raise ValueError("PROJECT_OWNERSHIP_MISMATCH")
+    quota = get_quota(str(project_id))
+    limit = getattr(quota, plural, None)
+    if not isinstance(limit, int) or limit < 0:
+        return
+    lister = getattr(proxy, {"floating_ips": "ips"}.get(plural, plural), None)
+    if not callable(lister):
+        return
+    try:
+        used = sum(1 for _ in lister(project_id=str(project_id)))
+    except TypeError:
+        used = sum(
+            1 for item in lister() if str(getattr(item, "project_id", "")) == str(project_id)
+        )
+    if used >= limit:
+        raise ValueError("NETWORK_QUOTA_EXCEEDED")
 
 
 def _raise(message: str) -> Any:
