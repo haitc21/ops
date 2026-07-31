@@ -201,6 +201,7 @@ async def test_fast_retry_ttl_returns_to_command_queue_once(
         name=f"ops.test.retry.fast.{uuid.uuid4().hex}",
         durable=False,
         auto_delete=True,
+        exclusive=True,
         arguments={
             "x-message-ttl": 500,
             "x-dead-letter-exchange": "cmp.cloud.command.v1",
