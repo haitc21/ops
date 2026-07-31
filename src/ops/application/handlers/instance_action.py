@@ -12,7 +12,7 @@ from openstack import exceptions as os_exc
 from ops.application.credential_resolver import CpsResolutionError, CredentialResolver
 from ops.application.handlers.registry import TypedHandlerFn
 from ops.config import Settings
-from ops.contracts.errors import CommonError
+from ops.contracts.errors import CommonError, ErrorCategory
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.envelope import MessageEnvelope
 from ops.contracts.messages.instance import InstanceAction, InstanceCommandPayload
@@ -92,14 +92,36 @@ def _failure(command: MessageEnvelope, error: CommonError) -> bytes:
     ).encode()
 
 
+def _invalid_state_error(action: InstanceAction, status: str) -> CommonError:
+    return CommonError(
+        code="INVALID_RESOURCE_STATE",
+        message="OpenStack provider request failed",
+        category=ErrorCategory.CONFLICT,
+        retryable=False,
+        provider="OPENSTACK",
+        provider_service="compute",
+        details={"action": action.value, "provider_status": status},
+    )
+
+
+def _server_image_id(server: Any) -> str | None:
+    image = getattr(server, "image", None)
+    if isinstance(image, dict):
+        value = image.get("id")
+    else:
+        value = getattr(image, "id", image)
+    return str(value) if value else None
+
+
 async def instance_action(
     command: MessageEnvelope,
-    _metadata: DeliveryMetadata,
+    metadata: DeliveryMetadata | None,
     _routing_key: str,
     *,
     settings: Settings,
     expected_action: InstanceAction,
 ) -> HandlerSuccess | HandlerFailedResult | HandlerRetryableError:
+    is_retry = metadata is not None and metadata.attempt > 1
     try:
         payload = InstanceCommandPayload.model_validate(command.payload)
     except ValueError:
@@ -137,6 +159,7 @@ async def instance_action(
                         ),
                     )
                 )
+            status = str(getattr(server, "status", "")).upper()
             if expected_action is InstanceAction.START and str(server.status).upper() == "SHUTOFF":
                 await asyncio.to_thread(compute.start_server, server)
             elif expected_action is InstanceAction.STOP and str(server.status).upper() == "ACTIVE":
@@ -149,33 +172,68 @@ async def instance_action(
                 flavor_id = payload.resize_flavor_provider_resource_id
                 if flavor_id is None:
                     return HandlerFailedResult()
-                await asyncio.to_thread(
-                    compute.resize_server,
-                    server,
-                    flavor_id,
-                )
+                if status in {"ACTIVE", "SHUTOFF"}:
+                    await asyncio.to_thread(
+                        compute.resize_server,
+                        server,
+                        flavor_id,
+                    )
+                elif not (is_retry and status in {"RESIZE", "VERIFY_RESIZE"}):
+                    error = _invalid_state_error(expected_action, status)
+                    return HandlerFailedResult(
+                        result_routing_key=OPERATION_FAILED,
+                        result_body=_failure(command, error),
+                    )
             elif expected_action is InstanceAction.CONFIRM_RESIZE:
-                await asyncio.to_thread(compute.confirm_resize_server, server)  # type: ignore[attr-defined]
+                if status == "VERIFY_RESIZE":
+                    await asyncio.to_thread(compute.confirm_server_resize, server)
+                elif not (is_retry and status == "ACTIVE"):
+                    error = _invalid_state_error(expected_action, status)
+                    return HandlerFailedResult(
+                        result_routing_key=OPERATION_FAILED,
+                        result_body=_failure(command, error),
+                    )
             elif expected_action is InstanceAction.REVERT_RESIZE:
-                await asyncio.to_thread(compute.revert_resize_server, server)  # type: ignore[attr-defined]
+                if status == "VERIFY_RESIZE":
+                    await asyncio.to_thread(compute.revert_server_resize, server)
+                elif not (is_retry and status == "ACTIVE"):
+                    error = _invalid_state_error(expected_action, status)
+                    return HandlerFailedResult(
+                        result_routing_key=OPERATION_FAILED,
+                        result_body=_failure(command, error),
+                    )
             elif expected_action is InstanceAction.REBUILD:
                 image_id = payload.rebuild_image_provider_resource_id
                 if image_id is None:
                     return HandlerFailedResult()
-                await asyncio.to_thread(
-                    compute.rebuild_server,
-                    server,
-                    image=image_id,
+                rebuild_already_converged = (
+                    is_retry
+                    and status in {"ACTIVE", "SHUTOFF"}
+                    and _server_image_id(server) == image_id
                 )
+                if status in {"ACTIVE", "SHUTOFF"} and not rebuild_already_converged:
+                    await asyncio.to_thread(
+                        compute.rebuild_server,
+                        server,
+                        image=image_id,
+                    )
+                elif not (is_retry and status == "REBUILD") and not rebuild_already_converged:
+                    error = _invalid_state_error(expected_action, status)
+                    return HandlerFailedResult(
+                        result_routing_key=OPERATION_FAILED,
+                        result_body=_failure(command, error),
+                    )
             elif expected_action is InstanceAction.DELETE:
-                metadata = getattr(server, "metadata", {}) or {}
-                managed_keypair = metadata.get("cmp_keypair_name")
+                server_metadata = getattr(server, "metadata", {}) or {}
+                managed_keypair = server_metadata.get("cmp_keypair_name")
                 managed_floating_ips: list[Any] = []
                 network = getattr(connection, "network", None)
                 if network is not None and (
                     not hasattr(connection, "has_service") or connection.has_service("network")
                 ):
-                    operation_marker = f"cmp-operation-{metadata.get('cmp_operation_id', '')}"
+                    operation_marker = (
+                        f"cmp-operation-{server_metadata.get('cmp_operation_id', '')}"
+                    )
                     for floating in await asyncio.to_thread(lambda: list(network.ips())):
                         if getattr(floating, "description", None) == operation_marker:
                             managed_floating_ips.append(floating)
