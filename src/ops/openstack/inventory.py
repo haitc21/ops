@@ -16,6 +16,7 @@ COLLECTIONS = (
     "domain",
     "project",
     "flavor",
+    "availability-zone",
     "image",
     "network",
     "subnet",
@@ -25,6 +26,7 @@ COLLECTIONS = (
     "security_group_rule",
     "floating_ip",
     "volume",
+    "volume-type",
     "volume-snapshot",
     "keypair",
     "instance",
@@ -202,6 +204,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         "domain": ("description", "is_enabled"),
         "project": ("domain_id", "domain_name", "description", "is_enabled"),
         "flavor": ("vcpus", "ram", "disk", "ephemeral", "swap", "is_public"),
+        "availability-zone": ("available",),
         "image": ("visibility", "size", "min_disk", "min_ram", "disk_format", "checksum"),
         "network": ("admin_state_up", "shared", "is_router_external", "mtu"),
         "subnet": (
@@ -252,6 +255,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
             "availability_zone",
             "attachments",
         ),
+        "volume-type": ("is_public", "description", "extra_specs"),
         "snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
         "volume-snapshot": ("project_id", "volume_id", "size", "description", "metadata"),
         "keypair": ("project_id", "fingerprint", "type", "public_key"),
@@ -294,6 +298,8 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         approval = extra_specs.get("cmp-catalog-approved")
         if isinstance(approval, str):
             attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
+        elif isinstance(approval, bool):
+            attributes["catalog_approved"] = approval
     item["attributes"] = attributes
     return item
 
@@ -305,6 +311,7 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
         "domain": ("identity", "domains"),
         "project": ("identity", "projects"),
         "flavor": ("compute", "flavors"),
+        "availability-zone": ("compute", "availability_zones"),
         "image": ("image", "images"),
         "network": ("network", "networks"),
         "subnet": ("network", "subnets"),
@@ -314,6 +321,7 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
         "security_group_rule": ("network", "security_group_rules"),
         "floating_ip": ("network", "ips"),
         "volume": ("block_storage", "volumes"),
+        "volume-type": ("block_storage", "types"),
         "snapshot": ("block_storage", "snapshots"),
         "volume-snapshot": ("block_storage", "snapshots"),
         "keypair": ("compute", "keypairs"),
@@ -322,7 +330,41 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
     service, method_name = proxy_name[resource_type]
     proxy = getattr(connection, service)
     resources: Iterable[Any] = getattr(proxy, method_name)()
-    mapped = [map_resource(resource_type, resource) for resource in resources]
+    if resource_type == "availability-zone":
+        approved_zones = {
+            str(_value(aggregate, "availability_zone"))
+            for aggregate in connection.compute.aggregates()
+            if _bool(
+                (_value(aggregate, "metadata", {}) or {}).get("cmp-catalog-approved")
+                if isinstance(_value(aggregate, "metadata", {}), Mapping)
+                else None
+            )
+            is True
+        }
+        mapped = []
+        for resource in resources:
+            zone_name = str(_value(resource, "name") or _value(resource, "zone_name") or "")
+            zone_state = _value(resource, "zone_state", {})
+            available = (
+                zone_state.get("available")
+                if isinstance(zone_state, Mapping)
+                else _value(resource, "available")
+            )
+            mapped.append(
+                map_resource(
+                    resource_type,
+                    {
+                        "id": zone_name,
+                        "name": zone_name,
+                        "available": available,
+                        "extra_specs": {
+                            "cmp-catalog-approved": zone_name in approved_zones,
+                        },
+                    },
+                )
+            )
+    else:
+        mapped = [map_resource(resource_type, resource) for resource in resources]
     if resource_type == "keypair":
         project_id = discover_effective_scope(connection).get("project_id")
         if project_id:
@@ -337,6 +379,11 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
 def collect_targeted_resource(
     connection: Any, resource_type: str, provider_resource_id: str
 ) -> dict[str, Any]:
+    if resource_type == "availability-zone":
+        for item in collect_resources(connection, resource_type):
+            if item["provider_resource_id"] == provider_resource_id:
+                return item
+        raise os_exc.ResourceNotFound(message="availability zone not found")
     getter = {
         "region": ("identity", "get_region"),
         "domain": ("identity", "get_domain"),
@@ -351,6 +398,7 @@ def collect_targeted_resource(
         "security_group_rule": ("network", "get_security_group_rule"),
         "floating_ip": ("network", "get_ip"),
         "volume": ("block_storage", "get_volume"),
+        "volume-type": ("block_storage", "get_type"),
         "snapshot": ("block_storage", "get_snapshot"),
         "volume-snapshot": ("block_storage", "get_snapshot"),
         "keypair": ("compute", "get_keypair"),

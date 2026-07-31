@@ -88,6 +88,56 @@ def test_flavor_extra_specs_is_normalized_to_catalog_approval() -> None:
     assert rejected["attributes"]["catalog_approved"] is False
 
 
+def test_volume_type_extra_specs_is_normalized_to_catalog_approval() -> None:
+    item = map_resource(
+        "volume-type",
+        SimpleNamespace(
+            id="type-1",
+            name="gold",
+            is_public=True,
+            extra_specs={"cmp-catalog-approved": "true", "volume_backend_name": "ceph"},
+        ),
+    )
+    assert item["attributes"]["catalog_approved"] is True
+    assert item["attributes"]["is_public"] is True
+
+
+def test_availability_zone_approval_comes_from_host_aggregate_metadata() -> None:
+    connection = SimpleNamespace(
+        compute=SimpleNamespace(
+            availability_zones=lambda: [
+                SimpleNamespace(name="az-approved", zone_state={"available": True}),
+                SimpleNamespace(name="az-private", zone_state={"available": True}),
+            ],
+            aggregates=lambda: [
+                SimpleNamespace(
+                    availability_zone="az-approved",
+                    metadata={"cmp-catalog-approved": "true"},
+                )
+            ],
+        )
+    )
+    items = collect_resources(connection, "availability-zone")
+    assert [item["provider_resource_id"] for item in items] == ["az-approved", "az-private"]
+    assert items[0]["attributes"] == {"available": True, "catalog_approved": True}
+    assert items[1]["attributes"] == {"available": True, "catalog_approved": False}
+
+
+def test_volume_type_collector_uses_block_storage_types() -> None:
+    connection = SimpleNamespace(
+        block_storage=SimpleNamespace(
+            types=lambda: [
+                SimpleNamespace(
+                    id="type-1",
+                    name="gold",
+                    extra_specs={"cmp-catalog-approved": "true"},
+                )
+            ]
+        )
+    )
+    assert collect_resources(connection, "volume-type")[0]["attributes"]["catalog_approved"] is True
+
+
 def test_mapper_sanitizes_nested_sdk_resources_and_drops_secret_fields() -> None:
     nested_resource = SimpleNamespace(id="port-1", name="should-not-be-needed")
     sensitive_field = "sec" + "ret"

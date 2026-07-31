@@ -16,6 +16,7 @@ class InventoryResourceType(StrEnum):
     DOMAIN = "domain"
     PROJECT = "project"
     FLAVOR = "flavor"
+    AVAILABILITY_ZONE = "availability-zone"
     IMAGE = "image"
     INSTANCE = "instance"
     NETWORK = "network"
@@ -27,6 +28,7 @@ class InventoryResourceType(StrEnum):
     SECURITY_GROUP_RULE = "security_group_rule"
     FLOATING_IP = "floating_ip"
     VOLUME = "volume"
+    VOLUME_TYPE = "volume-type"
     SNAPSHOT = "volume-snapshot"
     KEYPAIR = "keypair"
 
