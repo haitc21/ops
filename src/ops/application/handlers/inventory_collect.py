@@ -10,6 +10,7 @@ from typing import Any
 
 from keystoneauth1 import exceptions as ks_exc
 from openstack import exceptions as os_exc
+from pydantic import ValidationError
 
 from ops.application.credential_resolver import CpsResolutionError, CredentialResolver
 from ops.application.handlers.registry import TypedHandlerFn
@@ -27,6 +28,7 @@ from ops.observability.redaction import redact_mapping
 from ops.openstack.factory import openstack_connection
 from ops.openstack.inventory import (
     COLLECTIONS,
+    TargetedResourceNotFound,
     collect_resources,
     collect_targeted_resource,
     normalize_collection_names,
@@ -40,14 +42,31 @@ async def _collect_with_timeout(collector: Any, *args: Any, timeout_seconds: flo
     return await asyncio.wait_for(asyncio.to_thread(collector, *args), timeout=timeout_seconds)
 
 
+async def _collect_catalog_with_timeout(
+    collector: Any,
+    *args: Any,
+    timeout_seconds: float,
+    enrichment_max_calls: int,
+) -> Any:
+    return await asyncio.wait_for(
+        asyncio.to_thread(collector, *args, enrichment_max_calls=enrichment_max_calls),
+        timeout=timeout_seconds,
+    )
+
+
 def _event(
-    command: MessageEnvelope, message_type: str, payload: dict[str, Any], label: str
+    command: MessageEnvelope,
+    message_type: str,
+    payload: dict[str, Any],
+    label: str,
+    *,
+    schema_version: str | None = None,
 ) -> bytes:
     event = MessageEnvelope.model_validate(
         {
             "message_id": uuid.uuid5(command.operation_id, label),
             "message_type": message_type,
-            "schema_version": command.schema_version,
+            "schema_version": schema_version or command.schema_version,
             "occurred_at": command.occurred_at,
             "correlation_id": command.correlation_id,
             "causation_id": command.message_id,
@@ -96,13 +115,15 @@ def build_inventory_batch_messages(
                     ]
                 ),
                 "items": chunk,
-            }
+            },
+            context={"schema_version": "1.1"},
         )
         body = _event(
             command,
             INVENTORY_BATCH,
             payload.model_dump(mode="json"),
             f"inventory.batch.{resource_type}.{sequence}",
+            schema_version="1.1",
         )
         messages.append((INVENTORY_BATCH, body))
     return tuple(messages)
@@ -136,12 +157,21 @@ async def inventory_collect(
             results: list[tuple[str, bytes]] = []
             for resource_type in collections:
                 try:
-                    items = await _collect_with_timeout(
-                        collect_resources,
-                        connection,
-                        resource_type,
-                        timeout_seconds=settings.openstack_timeout_seconds,
-                    )
+                    if resource_type in {"image", "flavor"}:
+                        items = await _collect_catalog_with_timeout(
+                            collect_resources,
+                            connection,
+                            resource_type,
+                            timeout_seconds=settings.openstack_timeout_seconds,
+                            enrichment_max_calls=settings.catalog_enrichment_max_calls,
+                        )
+                    else:
+                        items = await _collect_with_timeout(
+                            collect_resources,
+                            connection,
+                            resource_type,
+                            timeout_seconds=settings.openstack_timeout_seconds,
+                        )
                     collection_status = "COMPLETE"
                 except (
                     AttributeError,
@@ -176,6 +206,8 @@ async def inventory_collect(
         if exc.retryable:
             return HandlerRetryableError(retry_reason="CPS_UNAVAILABLE")
         return HandlerFailedResult()
+    except ValidationError:
+        return HandlerFailedResult()
     except Exception as exc:
         logger.warning("inventory collection failed", extra={"error_type": type(exc).__name__})
         return HandlerRetryableError(retry_reason="PROVIDER_UNAVAILABLE")
@@ -203,14 +235,24 @@ async def inventory_refresh(
         resolution = await CredentialResolver(settings).resolve(command.provider_connection_id)
         with openstack_connection(resolution, settings) as connection:
             try:
-                item = await _collect_with_timeout(
-                    collect_targeted_resource,
-                    connection,
-                    resource_type,
-                    provider_resource_id,
-                    timeout_seconds=settings.openstack_timeout_seconds,
-                )
-            except (os_exc.ResourceNotFound, os_exc.NotFoundException):
+                if resource_type in {"image", "flavor"}:
+                    item = await _collect_catalog_with_timeout(
+                        collect_targeted_resource,
+                        connection,
+                        resource_type,
+                        provider_resource_id,
+                        timeout_seconds=settings.openstack_timeout_seconds,
+                        enrichment_max_calls=settings.catalog_enrichment_max_calls,
+                    )
+                else:
+                    item = await _collect_with_timeout(
+                        collect_targeted_resource,
+                        connection,
+                        resource_type,
+                        provider_resource_id,
+                        timeout_seconds=settings.openstack_timeout_seconds,
+                    )
+            except TargetedResourceNotFound:
                 item = {
                     "provider_resource_id": provider_resource_id,
                     "name": provider_resource_id,
@@ -245,6 +287,8 @@ async def inventory_refresh(
     except CpsResolutionError as exc:
         if exc.retryable:
             return HandlerRetryableError(retry_reason="CPS_UNAVAILABLE")
+        return HandlerFailedResult()
+    except ValidationError:
         return HandlerFailedResult()
     except Exception as exc:
         logger.warning("inventory refresh failed", extra={"error_type": type(exc).__name__})

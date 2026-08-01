@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 from keystoneauth1 import exceptions as ks_exc
 from openstack import exceptions as os_exc
 
+from ops.contracts.safe_metadata import validate_safe_project_id
 from ops.openstack.scope import discover_effective_scope
 
 COLLECTIONS = (
@@ -75,7 +77,29 @@ _SENSITIVE_KEY_PARTS = (
     "private_key",
     "user_data",
     "ca_cert",
+    "secret",
+    "credential",
 )
+_IMAGE_EXCLUDED_PROPERTIES = frozenset({"file", "locations", "direct_url", "url", "data"})
+
+
+class CatalogEnrichmentBudgetExceeded(RuntimeError):
+    """Catalog enrichment exceeded its configured provider-call budget."""
+
+
+class TargetedResourceNotFound(RuntimeError):
+    """The targeted base provider resource was confirmed absent."""
+
+
+class _EnrichmentBudget:
+    def __init__(self, maximum: int) -> None:
+        self.maximum = maximum
+        self.used = 0
+
+    def consume(self) -> None:
+        if self.used >= self.maximum:
+            raise CatalogEnrichmentBudgetExceeded("catalog enrichment call budget exceeded")
+        self.used += 1
 
 
 def _value(resource: Any, name: str, default: Any = None) -> Any:
@@ -103,6 +127,52 @@ def _bool(value: Any) -> bool | None:
     return None
 
 
+def _non_negative_int(value: Any, *, empty_zero: bool = False) -> int | None:
+    if value == "" and empty_zero:
+        return 0
+    if isinstance(value, bool):
+        return None
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized >= 0 else None
+
+
+def _strict_approval(value: Any) -> bool:
+    return value is True or (isinstance(value, str) and value.lower() == "true")
+
+
+def _safe_project_ids(values: Any, *, maximum: int = 256) -> list[str]:
+    if not isinstance(values, list | tuple | set | frozenset):
+        return []
+    normalized: set[str] = set()
+    for value in values:
+        if not isinstance(value, str) or not value:
+            continue
+        try:
+            normalized.add(validate_safe_project_id(value, label="project id"))
+        except ValueError:
+            continue
+    return sorted(normalized)[:maximum]
+
+
+def _safe_map(value: Any, *, excluded: frozenset[str] = frozenset()) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    result: dict[str, Any] = {}
+    for raw_key, raw_value in sorted(value.items(), key=lambda pair: str(pair[0])):
+        key = str(raw_key)
+        if key.lower() in excluded or _is_sensitive_key(key):
+            continue
+        sanitized = _sanitize_value(raw_value, key=key, depth=1)
+        if sanitized is not _DROP:
+            result[key] = sanitized
+        if len(result) == 128:
+            break
+    return result
+
+
 def _volume_attachment_summary(value: Any) -> list[dict[str, Any]]:
     """Keep only bounded, non-secret attachment identity fields."""
     if not isinstance(value, list | tuple):
@@ -128,9 +198,20 @@ def _is_sensitive_key(key: str) -> bool:
 
 def _sanitize_value(value: Any, *, key: str = "", depth: int = 0) -> Any:
     """Convert nested provider values into bounded JSON-safe primitives."""
-    if depth > 8 or _is_sensitive_key(key):
+    if depth > 4 or _is_sensitive_key(key):
         return _DROP
-    if value is None or isinstance(value, str | int | float | bool):
+    if isinstance(value, str):
+        parsed = urlsplit(value)
+        if parsed.scheme in {"http", "https"}:
+            if parsed.username is not None or parsed.password is not None:
+                return _DROP
+            if any(
+                _is_sensitive_key(query_key) or "signature" in query_key.lower()
+                for query_key, _ in parse_qsl(parsed.query, keep_blank_values=True)
+            ):
+                return _DROP
+        return value
+    if value is None or isinstance(value, int | float | bool):
         return value
     if isinstance(value, datetime | date):
         return value.isoformat()
@@ -157,7 +238,13 @@ def _sanitize_value(value: Any, *, key: str = "", depth: int = 0) -> Any:
     return _DROP
 
 
-def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
+def map_resource(
+    resource_type: str,
+    resource: Any,
+    *,
+    access_project_ids: list[Any] | None = None,
+    member_project_ids: list[Any] | None = None,
+) -> dict[str, Any]:
     """Map one SDK resource to the common contract without leaking SDK objects."""
     provider_id = str(_value(resource, "id", ""))
     name_value = _value(resource, "name", provider_id)
@@ -198,6 +285,37 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
         if project_id is not None:
             item["project_provider_resource_id"] = project_id
+    if resource_type == "image":
+        status = _value(resource, "status")
+        if isinstance(status, str):
+            item["provider_status"] = status.lower()
+        owner = _value(resource, "owner") or _value(resource, "owner_id")
+        if owner is not None:
+            item["project_provider_resource_id"] = str(owner)
+        for key, value in {
+            "visibility": str(_value(resource, "visibility", "")).lower() or None,
+            "size_bytes": _non_negative_int(_value(resource, "size")),
+            "min_disk_gib": _non_negative_int(_value(resource, "min_disk")),
+            "min_ram_mib": _non_negative_int(_value(resource, "min_ram")),
+            "disk_format": str(_value(resource, "disk_format", "")).lower() or None,
+            "checksum": _value(resource, "checksum"),
+        }.items():
+            if value is not None:
+                item[key] = value
+    if resource_type == "flavor":
+        for key, value in {
+            "vcpus": _non_negative_int(_value(resource, "vcpus")),
+            "ram_mib": _non_negative_int(_value(resource, "ram")),
+            "root_disk_gib": _non_negative_int(_value(resource, "disk")),
+            "ephemeral_disk_gib": _non_negative_int(_value(resource, "ephemeral")),
+            "swap_mib": _non_negative_int(_value(resource, "swap"), empty_zero=True),
+            "is_public": _bool(_value(resource, "is_public")),
+        }.items():
+            if value is not None:
+                item[key] = value
+        disabled = _bool(_value(resource, "is_disabled"))
+        if disabled is not None:
+            item["enabled"] = not disabled
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),
@@ -300,11 +418,55 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
             attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
         elif isinstance(approval, bool):
             attributes["catalog_approved"] = approval
+    if resource_type == "image":
+        protected = _bool(_value(resource, "is_protected", _value(resource, "protected")))
+        attributes = {
+            "catalog_approved": _strict_approval(
+                (_value(resource, "properties") or {}).get("cmp-catalog-approved")
+                if isinstance(_value(resource, "properties"), Mapping)
+                else None
+            )
+            or "cmp-catalog-approved=true"
+            in {str(tag).lower() for tag in (_value(resource, "tags") or [])},
+        }
+        if protected is not None:
+            attributes["is_protected"] = protected
+        container_format = str(_value(resource, "container_format", "")).lower()
+        if container_format:
+            attributes["container_format"] = container_format
+        virtual_size = _non_negative_int(_value(resource, "virtual_size"))
+        if virtual_size is not None:
+            attributes["virtual_size_bytes"] = virtual_size
+        tags = sorted({str(tag)[:255] for tag in (_value(resource, "tags") or [])})[:64]
+        if tags:
+            attributes["tags"] = tags
+        properties = _safe_map(_value(resource, "properties"), excluded=_IMAGE_EXCLUDED_PROPERTIES)
+        properties.pop("cmp-catalog-approved", None)
+        if properties:
+            attributes["properties"] = properties
+        normalized_members = _safe_project_ids(member_project_ids)
+        if normalized_members:
+            attributes["member_project_ids"] = normalized_members
+    elif resource_type == "flavor":
+        safe_specs = _safe_map(extra_specs)
+        approval = safe_specs.pop("cmp-catalog-approved", None)
+        attributes = {"catalog_approved": _strict_approval(approval)}
+        if safe_specs:
+            attributes["extra_specs"] = safe_specs
+        access_ids = (
+            access_project_ids
+            if access_project_ids is not None
+            else _value(resource, "access_project_ids", [])
+        )
+        if access_ids:
+            attributes["access_project_ids"] = _safe_project_ids(access_ids)
     item["attributes"] = attributes
     return item
 
 
-def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any]]:
+def collect_resources(
+    connection: Any, resource_type: str, *, enrichment_max_calls: int = 256
+) -> list[dict[str, Any]]:
     """Collect one resource type through supported SDK proxy generators."""
     proxy_name = {
         "region": ("identity", "regions"),
@@ -329,7 +491,10 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
     }
     service, method_name = proxy_name[resource_type]
     proxy = getattr(connection, service)
-    resources: Iterable[Any] = getattr(proxy, method_name)()
+    if resource_type == "flavor":
+        resources = getattr(proxy, method_name)(details=True, get_extra_specs=False)
+    else:
+        resources = getattr(proxy, method_name)()
     if resource_type == "availability-zone":
         approved_zones = {
             str(_value(aggregate, "availability_zone"))
@@ -363,6 +528,45 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
                     },
                 )
             )
+    elif resource_type == "image":
+        budget = _EnrichmentBudget(enrichment_max_calls)
+        mapped = []
+        for resource in resources:
+            member_ids: list[Any] = []
+            if str(_value(resource, "visibility", "")).lower() == "shared":
+                budget.consume()
+                member_ids = [
+                    _value(row, "member_id") for row in connection.image.members(resource)
+                ]
+            mapped.append(
+                map_resource(
+                    resource_type,
+                    resource,
+                    member_project_ids=[value for value in member_ids if value],
+                )
+            )
+    elif resource_type == "flavor":
+        budget = _EnrichmentBudget(enrichment_max_calls)
+        mapped = []
+        for resource in resources:
+            if not isinstance(_value(resource, "extra_specs"), Mapping):
+                budget.consume()
+                fetched = connection.compute.fetch_flavor_extra_specs(resource)
+                resource = fetched or resource
+            access_ids: list[Any] = []
+            if _bool(_value(resource, "is_public")) is False:
+                budget.consume()
+                access = connection.compute.get_flavor_access(resource)
+                access_ids = [
+                    _value(row, "tenant_id") or _value(row, "project_id") for row in access
+                ]
+            mapped.append(
+                map_resource(
+                    resource_type,
+                    resource,
+                    access_project_ids=[value for value in access_ids if value],
+                )
+            )
     else:
         mapped = [map_resource(resource_type, resource) for resource in resources]
     if resource_type == "keypair":
@@ -377,13 +581,17 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
 
 
 def collect_targeted_resource(
-    connection: Any, resource_type: str, provider_resource_id: str
+    connection: Any,
+    resource_type: str,
+    provider_resource_id: str,
+    *,
+    enrichment_max_calls: int = 256,
 ) -> dict[str, Any]:
     if resource_type == "availability-zone":
         for item in collect_resources(connection, resource_type):
             if item["provider_resource_id"] == provider_resource_id:
                 return item
-        raise os_exc.ResourceNotFound(message="availability zone not found")
+        raise TargetedResourceNotFound("targeted resource not found")
     getter = {
         "region": ("identity", "get_region"),
         "domain": ("identity", "get_domain"),
@@ -406,7 +614,39 @@ def collect_targeted_resource(
     }[resource_type]
     proxy = getattr(connection, getter[0])
     method = getattr(proxy, getter[1])
-    resource = method(provider_resource_id)
+    try:
+        if resource_type == "flavor":
+            resource = method(provider_resource_id, get_extra_specs=False)
+        else:
+            resource = method(provider_resource_id)
+    except (os_exc.ResourceNotFound, os_exc.NotFoundException) as exc:
+        raise TargetedResourceNotFound("targeted resource not found") from exc
+    if resource_type == "image":
+        member_ids: list[Any] = []
+        if str(_value(resource, "visibility", "")).lower() == "shared":
+            budget = _EnrichmentBudget(enrichment_max_calls)
+            budget.consume()
+            member_ids = [_value(row, "member_id") for row in connection.image.members(resource)]
+        return map_resource(
+            resource_type,
+            resource,
+            member_project_ids=[value for value in member_ids if value],
+        )
+    if resource_type == "flavor":
+        budget = _EnrichmentBudget(enrichment_max_calls)
+        if not isinstance(_value(resource, "extra_specs"), Mapping):
+            budget.consume()
+            resource = connection.compute.fetch_flavor_extra_specs(resource) or resource
+        access_ids: list[Any] = []
+        if _bool(_value(resource, "is_public")) is False:
+            budget.consume()
+            access = connection.compute.get_flavor_access(resource)
+            access_ids = [_value(row, "tenant_id") or _value(row, "project_id") for row in access]
+        return map_resource(
+            resource_type,
+            resource,
+            access_project_ids=[value for value in access_ids if value],
+        )
     return map_resource(resource_type, resource)
 
 

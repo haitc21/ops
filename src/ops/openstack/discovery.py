@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from openstack import exceptions as os_exc
+
 from ops.contracts.validation import CapabilityDocument
 from ops.openstack.scope import discover_effective_scope
 
@@ -86,6 +88,13 @@ def _feature(supported: bool, *, reason: str | None = None) -> dict[str, object]
     return result
 
 
+def _methods_feature(proxy: Any, names: tuple[str, ...], available: bool) -> dict[str, object]:
+    if not available:
+        return _feature(False, reason="SERVICE_NOT_AVAILABLE")
+    supported = all(callable(getattr(proxy, name, None)) for name in names)
+    return _feature(supported, reason=None if supported else "CAPABILITY_NOT_SUPPORTED")
+
+
 def discover_capabilities(conn: Any) -> CapabilityDocument:
     conn.authorize()
     catalog = getattr(conn, "service_catalog", []) or []
@@ -111,11 +120,6 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
         if name is None:
             continue
         details: dict[str, object] = {"available": True}
-        endpoints = entry.get("endpoints")
-        if isinstance(endpoints, list) and endpoints:
-            endpoint = endpoints[0]
-            if isinstance(endpoint, dict) and isinstance(endpoint.get("url"), str):
-                details["endpoint"] = endpoint["url"]
         details.update(_version_details(conn, name))
         available[name] = details
     if not available["identity"]["available"] or not available["compute"]["available"]:
@@ -151,6 +155,57 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
     features["instance.create.volume_from_image"] = _feature(
         volume_from_image,
         reason=None if volume_from_image else "SERVICE_NOT_AVAILABLE",
+    )
+    image = getattr(conn, "image", None)
+    image_available = bool(available["image"]["available"])
+    features["image.member"] = _methods_feature(image, ("add_member", "members"), image_available)
+    features["image.deactivate"] = _methods_feature(image, ("deactivate_image",), image_available)
+    features["image.reactivate"] = _methods_feature(image, ("reactivate_image",), image_available)
+    import_capability = _methods_feature(
+        image, ("get_import_info", "import_image"), image_available
+    )
+    if import_capability["supported"]:
+        try:
+            assert image is not None
+            info = image.get_import_info()
+            import_methods = (
+                info.get("import-methods")
+                if isinstance(info, dict)
+                else getattr(info, "import_methods", None)
+            )
+            raw_methods = (
+                import_methods.get("value", []) if isinstance(import_methods, dict) else []
+            )
+            methods = sorted(
+                {str(method) for method in raw_methods if isinstance(method, str) and method}
+            )
+            if methods:
+                import_capability["methods"] = methods
+            else:
+                import_capability = _feature(False, reason="CAPABILITY_NOT_SUPPORTED")
+        except os_exc.ForbiddenException:
+            import_capability = _feature(False, reason="PROVIDER_FORBIDDEN")
+        except Exception:
+            import_capability = _feature(False, reason="DISCOVERY_FAILED")
+    features["image.import"] = import_capability
+
+    compute_available = bool(available["compute"]["available"])
+    features["flavor.create"] = _methods_feature(compute, ("create_flavor",), compute_available)
+    features["flavor.delete"] = _methods_feature(compute, ("delete_flavor",), compute_available)
+    features["flavor.access"] = _methods_feature(
+        compute,
+        ("get_flavor_access", "flavor_add_tenant_access", "flavor_remove_tenant_access"),
+        compute_available,
+    )
+    features["flavor.extra_specs"] = _methods_feature(
+        compute,
+        (
+            "fetch_flavor_extra_specs",
+            "create_flavor_extra_specs",
+            "update_flavor_extra_specs_property",
+            "delete_flavor_extra_specs_property",
+        ),
+        compute_available,
     )
     network = getattr(conn, "network", None)
     network_features = {

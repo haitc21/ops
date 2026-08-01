@@ -1,0 +1,1526 @@
+{
+  "$defs": {
+    "SafePropertyName": {
+      "type": "string",
+      "maxLength": 255,
+      "not": {
+        "pattern": "(?:(?:.*[Pp][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd].*)|(?:.*[Tt][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn].*)|(?:.*[Aa][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Hh][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Zz][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn].*)|(?:.*[Pp][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Vv][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Yy].*)|(?:.*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Mm].*)|(?:.*[Uu][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Gg].*)|(?:.*[Cc][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll].*)|(?:.*[Ss][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Gg][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ll].*))"
+      }
+    },
+    "MetadataSafeString": {
+      "type": "string",
+      "maxLength": 128,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "MetadataScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/MetadataSafeString"
+        }
+      ]
+    },
+    "MetadataListItem": {
+      "$ref": "#/$defs/MetadataScalar"
+    },
+    "MetadataScalarList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/MetadataListItem"
+      }
+    },
+    "MetadataDepth4": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          }
+        ]
+      }
+    },
+    "MetadataDepth3": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth4"
+          }
+        ]
+      }
+    },
+    "MetadataDepth2": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth3"
+          }
+        ]
+      }
+    },
+    "MetadataDepth1": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth2"
+          }
+        ]
+      }
+    },
+    "MetadataMap": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth2"
+          }
+        ]
+      }
+    },
+    "ExtraSafeString": {
+      "type": "string",
+      "maxLength": 2048,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "ExtraScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/ExtraSafeString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ExtraListItem": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/ExtraSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/ExtraListItem"
+          }
+        },
+        {
+          "$ref": "#/$defs/ExtraDepth1"
+        },
+        {
+          "$ref": "#/$defs/ExtraDepth2"
+        },
+        {
+          "$ref": "#/$defs/ExtraDepth3"
+        },
+        {
+          "$ref": "#/$defs/ExtraDepth4"
+        }
+      ]
+    },
+    "ExtraScalarList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/ExtraListItem"
+      }
+    },
+    "ExtraDepth4": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          }
+        ]
+      }
+    },
+    "ExtraDepth3": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth4"
+          }
+        ]
+      }
+    },
+    "ExtraDepth2": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth3"
+          }
+        ]
+      }
+    },
+    "ExtraDepth1": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth2"
+          }
+        ]
+      }
+    },
+    "ExtraMap": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth2"
+          }
+        ]
+      }
+    },
+    "SafeMetadataString": {
+      "type": "string",
+      "maxLength": 128,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "BoundedMetadataMap": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MetadataSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth2"
+          }
+        ]
+      }
+    },
+    "BoundedAttachmentObject": {
+      "$ref": "#/$defs/AttachmentDepth1"
+    },
+    "BoundedCatalogString": {
+      "$ref": "#/$defs/CatalogSafeString"
+    },
+    "BoundedCatalogTagList": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/BoundedCatalogString"
+      }
+    },
+    "BoundedProjectIdList": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/SafeProjectIdString"
+      }
+    },
+    "InventoryBatchItem": {
+      "additionalProperties": false,
+      "properties": {
+        "provider_resource_id": {
+          "$ref": "#/$defs/CatalogSafeString",
+          "title": "Provider Resource Id"
+        },
+        "name": {
+          "$ref": "#/$defs/CatalogSafeString",
+          "title": "Name"
+        },
+        "provider_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogStatusSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Status"
+        },
+        "provider_created_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderTimestampString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Created At"
+        },
+        "provider_updated_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderTimestampString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Updated At"
+        },
+        "lifecycle_state": {
+          "default": "ACTIVE",
+          "pattern": "^(ACTIVE|DELETED)$",
+          "title": "Lifecycle State",
+          "type": "string"
+        },
+        "project_provider_resource_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Provider Resource Id"
+        },
+        "volume_type_provider_resource_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volume Type Provider Resource Id"
+        },
+        "size_gib": {
+          "anyOf": [
+            {
+              "maximum": 16384,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Gib"
+        },
+        "bootable": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bootable"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root"
+        },
+        "encrypted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encrypted"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundedMetadataMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "availability_zone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Availability Zone"
+        },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/BoundedAttachmentObject"
+          },
+          "maxItems": 32,
+          "title": "Attachments",
+          "type": "array"
+        },
+        "volume_provider_resource_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volume Provider Resource Id"
+        },
+        "snapshot_size_gib": {
+          "anyOf": [
+            {
+              "maximum": 16384,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Size Gib"
+        },
+        "visibility": {
+          "anyOf": [
+            {
+              "enum": [
+                "public",
+                "private",
+                "shared",
+                "community"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Visibility"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        },
+        "min_disk_gib": {
+          "anyOf": [
+            {
+              "maximum": 1048576,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Disk Gib"
+        },
+        "min_ram_mib": {
+          "anyOf": [
+            {
+              "maximum": 16777216,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Ram Mib"
+        },
+        "disk_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowedDiskFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disk Format"
+        },
+        "checksum": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogChecksumSafeString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checksum"
+        },
+        "vcpus": {
+          "anyOf": [
+            {
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vcpus"
+        },
+        "ram_mib": {
+          "anyOf": [
+            {
+              "maximum": 16777216,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ram Mib"
+        },
+        "root_disk_gib": {
+          "anyOf": [
+            {
+              "maximum": 1048576,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root Disk Gib"
+        },
+        "ephemeral_disk_gib": {
+          "anyOf": [
+            {
+              "maximum": 1048576,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ephemeral Disk Gib"
+        },
+        "swap_mib": {
+          "anyOf": [
+            {
+              "maximum": 16777216,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Swap Mib"
+        },
+        "is_public": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Is Public"
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enabled"
+        },
+        "attributes": {
+          "$ref": "#/$defs/InventoryAttributes",
+          "title": "Attributes"
+        }
+      },
+      "required": [
+        "provider_resource_id",
+        "name"
+      ],
+      "title": "InventoryBatchItem",
+      "type": "object"
+    },
+    "InventoryCollectionStatus": {
+      "enum": [
+        "COMPLETE",
+        "SKIPPED_UNSUPPORTED"
+      ],
+      "title": "InventoryCollectionStatus",
+      "type": "string"
+    },
+    "InventoryResourceType": {
+      "enum": [
+        "domain",
+        "region",
+        "project",
+        "flavor",
+        "availability-zone",
+        "image",
+        "instance",
+        "network",
+        "subnet",
+        "port",
+        "volume",
+        "volume-type",
+        "volume-snapshot",
+        "keypair",
+        "role-assignment",
+        "quota"
+      ],
+      "title": "InventoryResourceType",
+      "type": "string"
+    },
+    "InventoryAttributes": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "properties": {
+        "catalog_approved": {
+          "type": "boolean"
+        },
+        "is_protected": {
+          "type": "boolean"
+        },
+        "container_format": {
+          "$ref": "#/$defs/BoundedCatalogString"
+        },
+        "virtual_size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tags": {
+          "$ref": "#/$defs/BoundedCatalogTagList"
+        },
+        "properties": {
+          "$ref": "#/$defs/BoundedMetadataMap"
+        },
+        "extra_specs": {
+          "$ref": "#/$defs/BoundedMetadataMap"
+        },
+        "member_project_ids": {
+          "$ref": "#/$defs/BoundedProjectIdList"
+        },
+        "access_project_ids": {
+          "$ref": "#/$defs/BoundedProjectIdList"
+        }
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/MetadataScalar"
+          },
+          {
+            "$ref": "#/$defs/MetadataScalarList"
+          },
+          {
+            "$ref": "#/$defs/MetadataDepth1"
+          }
+        ]
+      }
+    },
+    "CatalogSafeString": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "CatalogStatusSafeString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/CatalogSafeString"
+        },
+        {
+          "maxLength": 64
+        }
+      ]
+    },
+    "CatalogChecksumSafeString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/CatalogSafeString"
+        },
+        {
+          "maxLength": 128
+        }
+      ]
+    },
+    "AllowedDiskFormat": {
+      "type": "string",
+      "enum": [
+        "aki",
+        "ami",
+        "ari",
+        "iso",
+        "ova",
+        "ploop",
+        "qcow2",
+        "qed",
+        "raw",
+        "vdi",
+        "vhd",
+        "vhdx",
+        "vmdk"
+      ],
+      "maxLength": 32,
+      "minLength": 1
+    },
+    "AttachmentPropertyName": {
+      "type": "string",
+      "maxLength": 32,
+      "not": {
+        "pattern": "(?:(?:.*[Pp][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd].*)|(?:.*[Tt][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn].*)|(?:.*[Aa][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Hh][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Zz][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn].*)|(?:.*[Pp][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Vv][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Yy].*)|(?:.*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Mm].*)|(?:.*[Uu][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Gg].*)|(?:.*[Cc][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll].*)|(?:.*[Ss][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Gg][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ll].*))"
+      }
+    },
+    "AttachmentSafeString": {
+      "type": "string",
+      "maxLength": 128,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "SafeProjectIdString": {
+      "$ref": "#/$defs/CatalogSafeString"
+    },
+    "ProviderTimestampString": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:0[0-9]|1[0-4]):[0-5]\\d)$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "AttachmentDepth4": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/AttachmentPropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/AttachmentSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          }
+        ]
+      }
+    },
+    "AttachmentDepth3": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/AttachmentPropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/AttachmentSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/AttachmentDepth4"
+          }
+        ]
+      }
+    },
+    "AttachmentDepth2": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/AttachmentPropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/AttachmentSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/AttachmentDepth3"
+          }
+        ]
+      }
+    },
+    "AttachmentDepth1": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/AttachmentPropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/AttachmentSafeString"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/MetadataListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/AttachmentDepth2"
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "sync_id": {
+      "format": "uuid",
+      "title": "Sync Id",
+      "type": "string"
+    },
+    "resource_type": {
+      "$ref": "#/$defs/InventoryResourceType"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "is_last": {
+      "title": "Is Last",
+      "type": "boolean"
+    },
+    "collection_status": {
+      "$ref": "#/$defs/InventoryCollectionStatus",
+      "default": "COMPLETE"
+    },
+    "item_count": {
+      "minimum": 0,
+      "title": "Item Count",
+      "type": "integer"
+    },
+    "checksum": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Checksum",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/InventoryBatchItem"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "sync_id",
+    "resource_type",
+    "sequence",
+    "is_last",
+    "item_count",
+    "checksum"
+  ],
+  "title": "InventoryBatchPayload",
+  "type": "object"
+}

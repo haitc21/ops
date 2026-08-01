@@ -1,0 +1,51 @@
+{
+  "message_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "message_type": "cloud.inventory.batch",
+  "schema_version": "1.1",
+  "occurred_at": "2026-08-01T00:00:00Z",
+  "correlation_id": "22222222-2222-4222-8222-222222222222",
+  "causation_id": "11111111-1111-4111-8111-111111111111",
+  "operation_id": "33333333-3333-4333-8333-333333333333",
+  "idempotency_key": null,
+  "provider_id": "44444444-4444-4444-8444-444444444444",
+  "provider_connection_id": "55555555-5555-4555-8555-555555555555",
+  "trace_context": {},
+  "payload": {
+    "sync_id": "77777777-7777-4777-8777-777777777777",
+    "resource_type": "image",
+    "sequence": 1,
+    "is_last": true,
+    "collection_status": "COMPLETE",
+    "item_count": 1,
+    "checksum": "4edcd124cd4e3304e08a710952e3509f4f1437b959edff581b09a8894910e46c",
+    "items": [
+      {
+        "provider_resource_id": "img-full-1",
+        "name": "ubuntu-22.04",
+        "provider_status": "active",
+        "project_provider_resource_id": "project-1",
+        "visibility": "public",
+        "size_bytes": 2147483648,
+        "min_disk_gib": 20,
+        "min_ram_mib": 512,
+        "disk_format": "qcow2",
+        "checksum": "abc123",
+        "attributes": {
+          "catalog_approved": true,
+          "is_protected": false,
+          "container_format": "bare",
+          "virtual_size_bytes": 2147483648,
+          "tags": [
+            "cmp-catalog-approved=true"
+          ],
+          "properties": {
+            "os_type": "linux"
+          },
+          "member_project_ids": [
+            "project-2"
+          ]
+        }
+      }
+    ]
+  }
+}

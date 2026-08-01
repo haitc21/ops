@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EnvironmentName = Literal["development", "test", "production"]
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     cps_base_url: str | None = None
     cps_timeout_seconds: int = 30
     openstack_timeout_seconds: int = 30
+    catalog_enrichment_max_calls: int = Field(default=256, ge=1, le=4096)
     openstack_verify_tls: bool = True
     worker_prefetch_count: int = 10
     worker_shutdown_grace_seconds: float = 30.0

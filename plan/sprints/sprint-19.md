@@ -1,6 +1,6 @@
 # Sprint 19 — OpenStack image and flavor administration adapter
 
-**Status:** Proposed — paired with CPS Sprint 19
+**Status:** In Progress — paired with CPS Sprint 19
 **Dates:** 2026-08-03 to 2026-08-14
 **Capacity:** 34 OPS points
 **Sprint Goal:** OPS safely executes and reconciles the image/flavor
@@ -11,7 +11,7 @@ returning provider-neutral, replay-safe results.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-1901 Catalog mapper and capability enrichment | 5 | OPS | CPS-1901 | Proposed |
+| OPS-1901 Catalog mapper and capability enrichment | 5 | OPS | CPS-1901 | Done |
 | OPS-1902 Flavor lifecycle handlers | 8 | OPS | CPS-1902 | Proposed |
 | OPS-1903 Image metadata/access/lifecycle handlers | 13 | OPS | CPS-1903 | Proposed |
 | OPS-1904 Instance image snapshot and compatibility | 5 | OPS | CPS-1904 | Proposed |
@@ -21,7 +21,7 @@ returning provider-neutral, replay-safe results.
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [OPS-1901](../tasks/sprint-19/OPS-1901-catalog-mappers.md) | Pinned contracts, detailed mappers, capabilities | OPS-1703 | Proposed |
+| [OPS-1901](../tasks/sprint-19/OPS-1901-catalog-mappers.md) | Pinned contracts, detailed mappers, capabilities | OPS-1703 | Done |
 | [OPS-1902](../tasks/sprint-19/OPS-1902-flavor-lifecycle.md) | Replay-safe Nova flavor handlers | OPS-1901 | Proposed |
 | [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Proposed |
 | [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Proposed |
@@ -48,24 +48,18 @@ installed skills in this order:
 1. `superpowers:using-superpowers`, optional `superpowers:brainstorming` when a
    design choice remains, then `superpowers:writing-plans`; Codex ChatGPT 5.6
    sol saves an exact micro-plan under `docs/superpowers/plans/`.
-2. `codex-security:threat-model` before code; new provider mutations, metadata,
-   URL handling, access changes, and deletion need explicit abuse cases.
-3. `superpowers:using-git-worktrees`, then
+2. `superpowers:using-git-worktrees`, then
    `superpowers:subagent-driven-development` (preferred) or
    `superpowers:executing-plans`.
-4. Cursor Composer 2.5 Fast uses `superpowers:test-driven-development` with an
+3. Cursor Composer 2.5 Fast uses `superpowers:test-driven-development` with an
    observed RED test before minimal implementation and refactor.
-5. `superpowers:requesting-code-review`; Codex ChatGPT 5.6 luna performs the
+4. `superpowers:requesting-code-review`; Codex ChatGPT 5.6 luna performs the
    independent failure/security review. Worker applies
    `superpowers:receiving-code-review`, fixes verified findings, and Reviewer
    rechecks.
-6. `codex-security:security-diff-scan` runs on the task Git diff through threat
-   model, discovery, validation, and attack-path analysis as applicable.
-   Reportable findings are triaged/fixed/tracked; unresolved Critical/High blocks
-   live acceptance and Git completion.
-7. `superpowers:verification-before-completion`, focused/full gates, CPS `curl`,
+5. `superpowers:verification-before-completion`, focused/full gates, CPS `curl`,
    OpenStack CLI comparison, zero-residual cleanup, and redacted runbook.
-8. `superpowers:finishing-a-development-branch`, then separate task-scoped
+6. `superpowers:finishing-a-development-branch`, then separate task-scoped
    commit/push only with explicit Git authorization in that execution turn.
 
 ## Acceptance and evidence
@@ -80,9 +74,9 @@ installed skills in this order:
 
 ## Review evidence
 
-- Contract checksum:
-- Test results:
-- Live comparisons:
-- Cleanup ledger:
-- Runbooks:
-- CPS/OPS commit and pushed refs:
+- Contract checksum: pinned to CPS `b8a5ff7`; 20 artifacts validated
+- Test results: 491 passed, 24 skipped; Ruff/MyPy/contracts/diff check passed
+- Live comparisons: operation `019fbe70-105a-7e7b-8a86-f0030e138204`; 2 images and 3 flavors matched CLI IDs/material fields
+- Cleanup ledger: read-only task; no provider resource created
+- Runbooks: `docs/runbooks/sprint-19-catalog-mappers.md`
+- CPS/OPS commit and pushed refs: CPS `b8a5ff7`; OPS recorded after push

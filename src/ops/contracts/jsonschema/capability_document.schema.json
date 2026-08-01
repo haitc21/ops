@@ -1,23 +1,712 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "additionalProperties": true,
-  "required": ["schema_version", "services", "features"],
+  "additionalProperties": {
+    "$ref": "#/$defs/BoundedExtraValue"
+  },
+  "maxProperties": 128,
+  "propertyNames": {
+    "$ref": "#/$defs/SafePropertyName"
+  },
+  "description": "Provider-neutral, bounded, secret-free capability result.",
   "properties": {
-    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "schema_version": {
+      "pattern": "^1\\.[0-9]+$",
+      "title": "Schema Version",
+      "type": "string",
+      "maxLength": 16
+    },
     "services": {
-      "type": "object",
-      "required": ["identity", "compute", "network", "image", "block_storage"],
-      "additionalProperties": {"$ref": "#/$defs/service"}
+      "additionalProperties": {
+        "$ref": "#/$defs/ServiceCapability"
+      },
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "title": "Services",
+      "type": "object"
     },
     "features": {
-      "type": "object",
-      "required": ["connection.authenticate", "service.identity", "service.compute", "service.network", "service.image", "service.block_storage"],
-      "additionalProperties": {"$ref": "#/$defs/feature"}
+      "additionalProperties": {
+        "$ref": "#/$defs/FeatureCapability"
+      },
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "title": "Features",
+      "type": "object"
     }
   },
+  "required": [
+    "schema_version",
+    "services",
+    "features"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "pattern": "^1\\.0*[1-9][0-9]*$"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "features": {
+            "required": [
+              "image.import",
+              "image.member",
+              "image.deactivate",
+              "image.reactivate",
+              "flavor.create",
+              "flavor.delete",
+              "flavor.access",
+              "flavor.extra_specs"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "title": "CapabilityDocument",
+  "type": "object",
   "$defs": {
-    "service": {"type": "object", "required": ["available"], "properties": {"available": {"type": "boolean"}, "min_version": {"type": ["string", "null"]}, "max_version": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}}},
-    "feature": {"type": "object", "required": ["supported"], "properties": {"supported": {"type": "boolean"}, "reason": {"type": ["string", "null"]}}}
+    "SafePropertyName": {
+      "type": "string",
+      "maxLength": 255,
+      "not": {
+        "pattern": "(?:(?:.*[Pp][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd].*)|(?:.*[Tt][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn].*)|(?:.*[Aa][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Hh][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Zz][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn].*)|(?:.*[Pp][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Vv][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Kk][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Yy].*)|(?:.*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Mm].*)|(?:.*[Uu][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Pp][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ss][^a-zA-Z0-9]*[Ee].*)|(?:.*[Rr][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ww][^a-zA-Z0-9]*[Cc][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll][^a-zA-Z0-9]*[Oo][^a-zA-Z0-9]*[Gg].*)|(?:.*[Cc][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Tt][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Aa][^a-zA-Z0-9]*[Ll].*)|(?:.*[Ss][^a-zA-Z0-9]*[Ii][^a-zA-Z0-9]*[Gg][^a-zA-Z0-9]*[Nn][^a-zA-Z0-9]*[Ee][^a-zA-Z0-9]*[Dd][^a-zA-Z0-9]*[Uu][^a-zA-Z0-9]*[Rr][^a-zA-Z0-9]*[Ll].*))"
+      }
+    },
+    "ExtraSafeString": {
+      "type": "string",
+      "maxLength": 2048,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "ExtraScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/ExtraSafeString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ExtraListItem": {
+      "$ref": "#/$defs/ExtraMetadataScalar"
+    },
+    "ExtraScalarList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/ExtraListItem"
+      }
+    },
+    "ExtraDepth4": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          }
+        ]
+      }
+    },
+    "ExtraDepth3": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth4"
+          }
+        ]
+      }
+    },
+    "ExtraDepth2": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth3"
+          }
+        ]
+      }
+    },
+    "ExtraDepth1": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth2"
+          }
+        ]
+      }
+    },
+    "ExtraMap": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth2"
+          }
+        ]
+      }
+    },
+    "SafeExtraString": {
+      "type": "string",
+      "maxLength": 2048,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": ".*[Bb][Ee][Gg][Ii][Nn].*[Pp][Rr][Ii][Vv][Aa][Tt][Ee].*[Kk][Ee][Yy].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Aa][Mm][Zz]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Xx]\\-[Gg][Oo][Oo][Gg]\\-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll].*"
+          },
+          {
+            "pattern": ".*[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://[^/:@]+:[^/@]+@.*"
+          },
+          {
+            "pattern": ".*[Hh][Tt][Tt][Pp][Ss]?://.*(?:[Tt][Oo][Kk][Ee][Nn]=|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]=|[Ss][Ii][Gg]=|[Ss][Ii][Gg][Nn][Ee][Dd]_[Uu][Rr][Ll]=|[Ss][Ii][Gg][Nn][Ee][Dd][Uu][Rr][Ll]=).*"
+          },
+          {
+            "pattern": ".*[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=.*"
+          },
+          {
+            "pattern": ".*[Tt][Oo][Kk][Ee][Nn]=.*"
+          },
+          {
+            "pattern": ".*[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][^a-zA-Z0-9]*[:\\s][^a-zA-Z0-9]*(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Bb][Aa][Ss][Ii][Cc]|[Tt][Oo][Kk][Ee][Nn])\\b.*"
+          },
+          {
+            "pattern": ".*(?:[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+[A-Za-z0-9._+/=-]{8,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z0-9._+/=]*[0-9=+/=-][A-Za-z0-9._+/=]{7,}|(?:[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn])[^a-zA-Z0-9]+[A-Za-z]{8,}(?:\\s*(?:[,.;:])?\\s*$)).*"
+          }
+        ]
+      }
+    },
+    "BoundedReasonString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/SafeExtraString"
+        },
+        {
+          "type": "string",
+          "maxLength": 256
+        }
+      ]
+    },
+    "BoundedVersionString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/SafeExtraString"
+        },
+        {
+          "type": "string",
+          "maxLength": 64
+        }
+      ]
+    },
+    "ExtraMetadataScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/ExtraSafeString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ExtraMetadataScalarList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/ExtraListItem"
+      }
+    },
+    "BoundedExtraValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExtraMetadataScalar"
+        },
+        {
+          "$ref": "#/$defs/ExtraMetadataScalarList"
+        },
+        {
+          "$ref": "#/$defs/ExtraDepth1"
+        }
+      ]
+    },
+    "FeatureCapability": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BoundedExtraValue"
+      },
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "properties": {
+        "supported": {
+          "title": "Supported",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundedReasonString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "supported"
+      ],
+      "title": "FeatureCapability",
+      "type": "object"
+    },
+    "ServiceCapability": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BoundedExtraValue"
+      },
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "min_version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundedVersionString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Version"
+        },
+        "max_version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundedVersionString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Version"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundedReasonString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "available"
+      ],
+      "title": "ServiceCapability",
+      "type": "object"
+    },
+    "ExtraMetadataDepth1": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth2"
+          }
+        ]
+      }
+    },
+    "ExtraMetadataDepth2": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth3"
+          }
+        ]
+      }
+    },
+    "ExtraMetadataDepth3": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          },
+          {
+            "$ref": "#/$defs/ExtraDepth4"
+          }
+        ]
+      }
+    },
+    "ExtraMetadataDepth4": {
+      "type": "object",
+      "maxProperties": 4,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/ExtraSafeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/$defs/ExtraListItem"
+            }
+          }
+        ]
+      }
+    }
   }
 }

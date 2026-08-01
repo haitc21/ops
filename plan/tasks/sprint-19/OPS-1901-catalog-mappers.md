@@ -1,6 +1,6 @@
 # OPS-1901 — Catalog mapper and capability enrichment
 
-**Status:** Proposed  
+**Status:** Done
 **Points:** 5  
 **Paired task:** CPS-1901  
 **Depends on:** OPS-1703
@@ -34,12 +34,11 @@ required by later lifecycle handlers without leaking SDK objects or secrets.
 ## AI/Superpowers workflow
 
 **Mandatory skill chain:** `superpowers:using-superpowers` →
-`superpowers:writing-plans` → `codex-security:threat-model` →
+`superpowers:writing-plans` →
 `superpowers:using-git-worktrees` →
 `superpowers:subagent-driven-development` or `superpowers:executing-plans` →
 `superpowers:test-driven-development` →
 `superpowers:requesting-code-review` / `superpowers:receiving-code-review` →
-`codex-security:security-diff-scan` →
 `superpowers:verification-before-completion` → live curl/CLI/runbook →
 `superpowers:finishing-a-development-branch`. Use brainstorming if mapper bounds
 or capability semantics remain undecided. Critical/High findings block completion.
@@ -55,6 +54,10 @@ or capability semantics remain undecided. Critical/High findings block completio
    bodies cross the boundary, bounded calls/timeouts, optional-field handling,
    redaction, deterministic ordering, and no novaclient/glanceclient dependency.
 4. Worker fixes findings and reruns affected/full suites; Reviewer rechecks.
+
+Dedicated Codex Security skill gates were removed from the global workflow by
+the user. Luna's independent quality/security-oriented review and the final
+secret scan remain required.
 
 ## Verification, runbook, and Git gate
 

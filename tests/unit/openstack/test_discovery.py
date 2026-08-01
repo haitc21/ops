@@ -36,12 +36,30 @@ def _connection(*, include_block_storage: bool = True) -> SimpleNamespace:
         stop_server=lambda *_: None,
         reboot_server=lambda *_args, **_kwargs: None,
         delete_server=lambda *_: None,
+        create_flavor=lambda **_: None,
+        delete_flavor=lambda *_: None,
+        get_flavor_access=lambda *_: [],
+        flavor_add_tenant_access=lambda *_: None,
+        flavor_remove_tenant_access=lambda *_: None,
+        fetch_flavor_extra_specs=lambda *_: None,
+        create_flavor_extra_specs=lambda *_: None,
+        update_flavor_extra_specs_property=lambda *_: None,
+        delete_flavor_extra_specs_property=lambda *_: None,
+    )
+    image = SimpleNamespace(
+        get_import_info=lambda: SimpleNamespace(import_methods={"value": ["glance-direct"]}),
+        import_image=lambda *_args, **_kwargs: None,
+        add_member=lambda *_: None,
+        members=lambda *_: [],
+        deactivate_image=lambda *_: None,
+        reactivate_image=lambda *_: None,
     )
     return SimpleNamespace(
         authorize=lambda: None,
         service_catalog=entries,
         config=_Config(),
         compute=compute,
+        image=image,
     )
 
 
@@ -51,10 +69,10 @@ def test_discovery_reports_versions_microversions_and_operations() -> None:
     assert capabilities.services["compute"].min_version == "2.1"
     assert capabilities.services["compute"].max_version == "2.1"
     assert capabilities.services["compute"].model_extra == {
-        "endpoint": "https://nova.example",
         "min_microversion": "2.1",
         "max_microversion": "2.90",
     }
+    assert "https://nova.example" not in repr(capabilities)
     assert capabilities.features["instance.create.image"].supported is True
     assert capabilities.features["instance.create.volume_from_image"].supported is True
     assert capabilities.features["instance.delete"].supported is True
@@ -78,3 +96,19 @@ def test_discovery_requires_identity_and_compute() -> None:
 
     with pytest.raises(RuntimeError, match="identity and compute"):
         discover_capabilities(connection)
+
+
+def test_discovery_reports_catalog_operation_capabilities() -> None:
+    capabilities = discover_capabilities(_connection())
+    for name in (
+        "image.import",
+        "image.member",
+        "image.deactivate",
+        "image.reactivate",
+        "flavor.create",
+        "flavor.delete",
+        "flavor.access",
+        "flavor.extra_specs",
+    ):
+        assert capabilities.features[name].supported is True
+    assert capabilities.features["image.import"].model_extra == {"methods": ["glance-direct"]}

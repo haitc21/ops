@@ -1,0 +1,45 @@
+{
+  "message_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "message_type": "cloud.inventory.batch",
+  "schema_version": "1.1",
+  "occurred_at": "2026-08-01T00:00:00Z",
+  "correlation_id": "22222222-2222-4222-8222-222222222222",
+  "causation_id": "11111111-1111-4111-8111-111111111111",
+  "operation_id": "33333333-3333-4333-8333-333333333333",
+  "idempotency_key": null,
+  "provider_id": "44444444-4444-4444-8444-444444444444",
+  "provider_connection_id": "55555555-5555-4555-8555-555555555555",
+  "trace_context": {},
+  "payload": {
+    "sync_id": "77777777-7777-4777-8777-777777777777",
+    "resource_type": "flavor",
+    "sequence": 1,
+    "is_last": true,
+    "collection_status": "COMPLETE",
+    "item_count": 1,
+    "checksum": "ab2809ca03607cb92f3c024acb3d154bc083442ebf528194dee61fedafd29573",
+    "items": [
+      {
+        "provider_resource_id": "flv-full-1",
+        "name": "m1.small",
+        "provider_status": "active",
+        "vcpus": 1,
+        "ram_mib": 2048,
+        "root_disk_gib": 20,
+        "ephemeral_disk_gib": 0,
+        "swap_mib": 0,
+        "is_public": true,
+        "enabled": true,
+        "attributes": {
+          "catalog_approved": true,
+          "extra_specs": {
+            "hw:cpu_policy": "shared"
+          },
+          "access_project_ids": [
+            "project-1"
+          ]
+        }
+      }
+    ]
+  }
+}
