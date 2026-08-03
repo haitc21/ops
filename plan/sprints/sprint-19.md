@@ -1,6 +1,6 @@
 # Sprint 19 — OpenStack image and flavor administration adapter
 
-**Status:** In progress — 1901–1903 delivered; live 1904/1905 evidence remains
+**Status:** Done with explicit 1905 restart/failure-path waiver
 **Dates:** 2026-08-03 to 2026-08-14
 **Capacity:** 34 OPS points
 **Sprint Goal:** OPS safely executes and reconciles the image/flavor
@@ -15,7 +15,7 @@ returning provider-neutral, replay-safe results.
 | OPS-1902 Flavor lifecycle handlers | 8 | OPS | CPS-1902 | Done |
 | OPS-1903 Image metadata/access/lifecycle handlers | 13 | OPS | CPS-1903 | Done |
 | OPS-1904 Instance image snapshot and compatibility | 5 | OPS | CPS-1904 | Done |
-| OPS-1905 Real-cloud acceptance and cleanup | 3 | CPS/OPS | CPS-1905 | Blocked |
+| OPS-1905 Real-cloud acceptance and cleanup | 3 | CPS/OPS | CPS-1905 | Done (waived restart/failure path) |
 
 ## Task backlog
 
@@ -25,7 +25,7 @@ returning provider-neutral, replay-safe results.
 | [OPS-1902](../tasks/sprint-19/OPS-1902-flavor-lifecycle.md) | Replay-safe Nova flavor handlers | OPS-1901 | Done |
 | [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Done |
 | [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Done |
-| [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Blocked |
+| [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Done (waived restart/failure path) |
 
 ## Architecture and reuse constraints
 
