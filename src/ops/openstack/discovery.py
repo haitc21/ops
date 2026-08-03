@@ -140,6 +140,7 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
     compute = getattr(conn, "compute", None)
     compute_features = {
         "instance.create.image": "create_server",
+        "instance.snapshot": "create_server_image",
         "instance.start": "start_server",
         "instance.stop": "stop_server",
         "instance.reboot": "reboot_server",
@@ -179,6 +180,7 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
         )
     image = getattr(conn, "image", None)
     image_features = {
+        "image.delete": ("delete_image",),
         "image.import": ("import_image",),
         "image.member": ("add_member", "remove_member", "update_member", "members"),
         "image.deactivate": ("deactivate_image",),
