@@ -1,6 +1,6 @@
 # OPS-1905 — Image/flavor adapter acceptance and cleanup
 
-**Status:** Proposed  
+**Status:** Blocked — live release matrix incomplete
 **Points:** 3  
 **Paired task:** CPS-1905  
 **Depends on:** OPS-1901..1904

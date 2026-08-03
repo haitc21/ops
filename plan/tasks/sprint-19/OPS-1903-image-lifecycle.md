@@ -1,6 +1,6 @@
 # OPS-1903 — Image metadata, access, and lifecycle handlers
 
-**Status:** Proposed  
+**Status:** Blocked — no configured allowlisted HTTPS lab source
 **Points:** 13  
 **Paired task:** CPS-1903  
 **Depends on:** OPS-1901

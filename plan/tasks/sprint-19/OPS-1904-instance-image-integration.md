@@ -1,6 +1,6 @@
 # OPS-1904 — Instance image snapshot and compatibility adapter
 
-**Status:** Proposed  
+**Status:** Blocked — dependent live provider prerequisites
 **Points:** 5  
 **Paired task:** CPS-1904  
 **Depends on:** OPS-1901, OPS-1903, OPS-1701

@@ -1,6 +1,6 @@
 # OPS-1902 — Flavor lifecycle handlers
 
-**Status:** Proposed  
+**Status:** Blocked — live provider connection authorization mismatch
 **Points:** 8  
 **Paired task:** CPS-1902  
 **Depends on:** OPS-1901

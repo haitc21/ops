@@ -1,6 +1,6 @@
 # Sprint 19 — OpenStack image and flavor administration adapter
 
-**Status:** Proposed — paired with CPS Sprint 19
+**Status:** Blocked — 1901 delivered; live lab prerequisites block 1902–1905
 **Dates:** 2026-08-03 to 2026-08-14
 **Capacity:** 34 OPS points
 **Sprint Goal:** OPS safely executes and reconciles the image/flavor
@@ -11,21 +11,21 @@ returning provider-neutral, replay-safe results.
 
 | Story | Points | Owner | CPS dependency | Status |
 |---|---:|---|---|---|
-| OPS-1901 Catalog mapper and capability enrichment | 5 | OPS | CPS-1901 | Proposed |
-| OPS-1902 Flavor lifecycle handlers | 8 | OPS | CPS-1902 | Proposed |
-| OPS-1903 Image metadata/access/lifecycle handlers | 13 | OPS | CPS-1903 | Proposed |
-| OPS-1904 Instance image snapshot and compatibility | 5 | OPS | CPS-1904 | Proposed |
-| OPS-1905 Real-cloud acceptance and cleanup | 3 | CPS/OPS | CPS-1905 | Proposed |
+| OPS-1901 Catalog mapper and capability enrichment | 5 | OPS | CPS-1901 | Done |
+| OPS-1902 Flavor lifecycle handlers | 8 | OPS | CPS-1902 | Blocked |
+| OPS-1903 Image metadata/access/lifecycle handlers | 13 | OPS | CPS-1903 | Blocked |
+| OPS-1904 Instance image snapshot and compatibility | 5 | OPS | CPS-1904 | Blocked |
+| OPS-1905 Real-cloud acceptance and cleanup | 3 | CPS/OPS | CPS-1905 | Blocked |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [OPS-1901](../tasks/sprint-19/OPS-1901-catalog-mappers.md) | Pinned contracts, detailed mappers, capabilities | OPS-1703 | Proposed |
-| [OPS-1902](../tasks/sprint-19/OPS-1902-flavor-lifecycle.md) | Replay-safe Nova flavor handlers | OPS-1901 | Proposed |
-| [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Proposed |
-| [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Proposed |
-| [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Proposed |
+| [OPS-1901](../tasks/sprint-19/OPS-1901-catalog-mappers.md) | Pinned contracts, detailed mappers, capabilities | OPS-1703 | Done |
+| [OPS-1902](../tasks/sprint-19/OPS-1902-flavor-lifecycle.md) | Replay-safe Nova flavor handlers | OPS-1901 | Blocked |
+| [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Blocked |
+| [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Blocked |
+| [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Blocked |
 
 ## Architecture and reuse constraints
 

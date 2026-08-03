@@ -1,6 +1,6 @@
 # OPS-1901 — Catalog mapper and capability enrichment
 
-**Status:** Proposed  
+**Status:** Done — automated and live acceptance passed
 **Points:** 5  
 **Paired task:** CPS-1901  
 **Depends on:** OPS-1703
