@@ -1,8 +1,8 @@
 # Sprint 19 — OpenStack image and flavor administration adapter
 
-**Status:** Done with explicit 1905 restart/failure-path waiver
+**Status:** Extension selected — original OPS-1901..1905 complete; OPS-1906..1908 planned
 **Dates:** 2026-08-03 to 2026-08-14
-**Capacity:** 34 OPS points
+**Capacity:** 34 delivered + 29-point Horizon parity extension
 **Sprint Goal:** OPS safely executes and reconciles the image/flavor
 administration commands defined by CPS, using supported OpenStackSDK APIs and
 returning provider-neutral, replay-safe results.
@@ -16,6 +16,9 @@ returning provider-neutral, replay-safe results.
 | OPS-1903 Image metadata/access/lifecycle handlers | 13 | OPS | CPS-1903 | Done |
 | OPS-1904 Instance image snapshot and compatibility | 5 | OPS | CPS-1904 | Done |
 | OPS-1905 Real-cloud acceptance and cleanup | 3 | CPS/OPS | CPS-1905 | Done (waived restart/failure path) |
+| OPS-1906 Horizon semantic parity and catalog enrichment | 8 | OPS | CPS-1906 | Planned |
+| OPS-1907 Flavor and image provider lifecycle parity closure | 13 | OPS | CPS-1907 | Planned |
+| OPS-1908 API-driven compatibility and live acceptance | 8 | CPS/OPS | CPS-1908 | Planned |
 
 ## Task backlog
 
@@ -26,6 +29,9 @@ returning provider-neutral, replay-safe results.
 | [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Done |
 | [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Done |
 | [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Done (waived restart/failure path) |
+| [OPS-1906](../tasks/sprint-19/OPS-1906-horizon-semantic-parity.md) | Nova/Glance filter, detail, capability, and normalization parity | OPS-1901..1905 | Planned |
+| [OPS-1907](../tasks/sprint-19/OPS-1907-provider-parity-closure.md) | Close safe flavor/image lifecycle gaps with replay-safe SDK handlers | OPS-1906 | Planned |
+| [OPS-1908](../tasks/sprint-19/OPS-1908-portal-live-acceptance.md) | CPS API/OPS/OpenStack comparison, recovery, and cleanup evidence | OPS-1907 | Planned |
 
 ## Architecture and reuse constraints
 
