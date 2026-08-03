@@ -21,6 +21,10 @@ from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.instance import InstanceAction
 from ops.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLAVOR_ACCESS_REPLACE,
+    FLAVOR_CREATE,
+    FLAVOR_DELETE,
+    FLAVOR_EXTRA_SPECS_PATCH,
     FLOATING_IP_ALLOCATE,
     FLOATING_IP_ASSOCIATE,
     FLOATING_IP_DISASSOCIATE,
@@ -165,6 +169,10 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
         SNAPSHOT_DELETE,
         KEYPAIR_IMPORT,
         KEYPAIR_DELETE,
+        FLAVOR_CREATE,
+        FLAVOR_DELETE,
+        FLAVOR_ACCESS_REPLACE,
+        FLAVOR_EXTRA_SPECS_PATCH,
     ):
         registry.register(message_type, identity_handler)
     registry.freeze()

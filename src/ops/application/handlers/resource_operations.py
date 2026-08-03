@@ -342,6 +342,8 @@ def _execute(
         return _execute_snapshot(connection, operation, provider_id, params)
     if resource_type == "keypair":
         return _execute_keypair(connection, operation, provider_id, params)
+    if resource_type == "flavor":
+        return _execute_flavor(connection, operation, provider_id, params)
     if resource_type in {
         "network",
         "subnet",
@@ -499,6 +501,117 @@ def _execute(
             "attributes": _normalize_quota(quota),
         }, ResourceOperationState.SUCCEEDED
     raise ValueError(f"unsupported resource operation: {request.resource_type}/{request.operation}")
+
+
+def _flavor_proxy(connection: Any) -> Any:
+    proxy = getattr(connection, "compute", None)
+    if proxy is None:
+        raise ValueError("compute service is unavailable")
+    return proxy
+
+
+def _flavor_matches(flavor: Any, params: dict[str, Any]) -> bool:
+    """Compare the Nova shape CPS treats as immutable after creation."""
+    expected = {
+        "name": params.get("name"),
+        "vcpus": params.get("vcpus"),
+        "ram": params.get("ram_mib"),
+        "disk": params.get("disk_gib"),
+        "ephemeral": params.get("ephemeral_gib", 0),
+        "swap": params.get("swap_mib", 0),
+        "is_public": params.get("is_public"),
+    }
+    aliases = {"ram": "ram", "disk": "disk", "is_public": "is_public"}
+    for key, value in expected.items():
+        if value is None:
+            continue
+        actual = getattr(flavor, aliases.get(key, key), None)
+        if actual is None and key in {"ephemeral", "swap"}:
+            actual = 0
+        if str(actual) != str(value):
+            return False
+    return True
+
+
+def _get_flavor(proxy: Any, provider_id: str) -> Any:
+    return proxy.get_flavor(provider_id)
+
+
+def _execute_flavor(
+    connection: Any,
+    operation: str,
+    provider_id: str | None,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Converge Nova flavor lifecycle mutations without replace-by-delete."""
+    proxy = _flavor_proxy(connection)
+    if operation == "create":
+        if provider_id:
+            try:
+                existing = _get_flavor(proxy, provider_id)
+            except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+                existing = None
+            if existing is not None:
+                if not _flavor_matches(existing, params):
+                    raise os_exc.ConflictException("existing flavor has a different shape")
+                return existing, ResourceOperationState.SUCCEEDED
+        else:
+            existing = next(
+                (item for item in proxy.flavors() if getattr(item, "name", None) == params["name"]),
+                None,
+            )
+            if existing is not None:
+                if not _flavor_matches(existing, params):
+                    raise os_exc.ConflictException("existing flavor has a different shape")
+                return existing, ResourceOperationState.SUCCEEDED
+        create_params = {
+            "name": params["name"],
+            "vcpus": params["vcpus"],
+            "ram": params["ram_mib"],
+            "disk": params["disk_gib"],
+            "ephemeral": params.get("ephemeral_gib", 0),
+            "swap": params.get("swap_mib", 0),
+            "is_public": params.get("is_public", True),
+        }
+        if provider_id:
+            create_params["flavorid"] = provider_id
+        return proxy.create_flavor(**create_params), ResourceOperationState.SUCCEEDED
+    if not provider_id:
+        raise ValueError("provider_resource_id is required")
+    try:
+        flavor = _get_flavor(proxy, provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound):
+        if operation == "delete":
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+    if operation == "delete":
+        proxy.delete_flavor(flavor, ignore_missing=True)
+        return None, ResourceOperationState.SUCCEEDED
+    if operation == "replace_access":
+        desired = {str(item) for item in params.get("access_project_ids", [])}
+        current = {
+            str(getattr(item, "tenant_id", getattr(item, "project_id", "")))
+            for item in proxy.get_flavor_access(flavor)
+        }
+        for project_id in sorted(desired - current):
+            proxy.flavor_add_tenant_access(flavor, project_id)
+        for project_id in sorted(current - desired):
+            proxy.flavor_remove_tenant_access(flavor, project_id)
+        return flavor, ResourceOperationState.SUCCEEDED
+    if operation == "patch_extra_specs":
+        updates = dict(params.get("extra_specs", {}))
+        removals = set(params.get("remove_extra_spec_keys", []))
+        fetched = proxy.fetch_flavor_extra_specs(flavor)
+        current_specs = dict(
+            getattr(fetched, "extra_specs", fetched if isinstance(fetched, dict) else {}) or {}
+        )
+        for key in sorted(removals):
+            if key in current_specs:
+                proxy.delete_flavor_extra_specs_property(flavor, key)
+        if updates:
+            proxy.create_flavor_extra_specs(flavor, extra_specs=updates)
+        return flavor, ResourceOperationState.SUCCEEDED
+    raise ValueError(f"unsupported flavor operation: {operation}")
 
 
 def _execute_volume(

@@ -25,6 +25,10 @@ from ops.application.handlers.registry import HandlerRegistry
 from ops.config import Settings
 from ops.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLAVOR_ACCESS_REPLACE,
+    FLAVOR_CREATE,
+    FLAVOR_DELETE,
+    FLAVOR_EXTRA_SPECS_PATCH,
     SNAPSHOT_CREATE,
     SNAPSHOT_DELETE,
     SNAPSHOT_UPDATE,
@@ -181,6 +185,18 @@ def test_production_registry_registers_snapshot_lifecycle_handlers() -> None:
     assert registry.lookup(SNAPSHOT_CREATE) is not None
     assert registry.lookup(SNAPSHOT_UPDATE) is not None
     assert registry.lookup(SNAPSHOT_DELETE) is not None
+
+
+def test_production_registry_registers_flavor_lifecycle_handlers() -> None:
+    registry = build_production_registry(Settings(environment="test"))
+
+    for message_type in (
+        FLAVOR_CREATE,
+        FLAVOR_DELETE,
+        FLAVOR_ACCESS_REPLACE,
+        FLAVOR_EXTRA_SPECS_PATCH,
+    ):
+        assert registry.lookup(message_type) is not None
 
 
 def test_build_default_registry_unfrozen_allows_register_without_callback() -> None:
