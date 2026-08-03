@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import socket
 import time
 import uuid
 from typing import Any
@@ -22,6 +23,7 @@ from ops.config import Settings
 from ops.contracts.errors import CommonError, ErrorCategory
 from ops.contracts.messages.delivery import DeliveryMetadata
 from ops.contracts.messages.envelope import MessageEnvelope
+from ops.contracts.messages.image_operations import ImageOperationRequest
 from ops.contracts.messages.resource_operations import (
     ResourceOperationRequest,
     ResourceOperationState,
@@ -86,7 +88,49 @@ def _request(command: MessageEnvelope) -> ResourceOperationRequest:
     request = ResourceOperationRequest.model_validate(payload)
     if _contains_secret(request.parameters):
         raise ValueError("secret parameters are not accepted")
+    if request.resource_type.lower() == "image":
+        _validate_image_request(request)
     return request
+
+
+def _validate_image_request(request: ResourceOperationRequest) -> ImageOperationRequest:
+    """Apply the pinned no-bytes/SSRF policy before credentials or SDK access."""
+    parameters = dict(request.parameters)
+    parameters.pop("operation_marker", None)
+    typed = ImageOperationRequest.model_validate(
+        {
+            "operation_id": request.operation_id,
+            "resource_type": "image",
+            "operation": request.operation,
+            "required_scope": request.required_scope,
+            "provider_connection_id": request.provider_connection_id,
+            "provider_resource_id": request.provider_resource_id,
+            **parameters,
+        }
+    )
+    if typed.source_url:
+        _assert_public_import_target(typed.source_url)
+    return typed
+
+
+def _assert_public_import_target(source_url: str) -> None:
+    """Reject DNS answers that could direct Glance import at local networks."""
+    from urllib.parse import urlsplit
+
+    host = urlsplit(source_url).hostname
+    if not host:
+        raise ValueError("source URL host is invalid")
+    try:
+        answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError("source URL host could not be resolved") from exc
+    addresses = {item[4][0] for item in answers}
+    if not addresses:
+        raise ValueError("source URL host has no addresses")
+    for answer in addresses:
+        address = ipaddress.ip_address(answer)
+        if not address.is_global:
+            raise ValueError("source URL resolves to a non-public address")
 
 
 def _contains_secret(value: Any) -> bool:
@@ -344,6 +388,9 @@ def _execute(
         return _execute_keypair(connection, operation, provider_id, params)
     if resource_type == "flavor":
         return _execute_flavor(connection, operation, provider_id, params)
+    if resource_type == "image":
+        _validate_image_request(request)
+        return _execute_image(connection, operation, provider_id, params)
     if resource_type in {
         "network",
         "subnet",
@@ -612,6 +659,112 @@ def _execute_flavor(
             proxy.create_flavor_extra_specs(flavor, extra_specs=updates)
         return flavor, ResourceOperationState.SUCCEEDED
     raise ValueError(f"unsupported flavor operation: {operation}")
+
+
+def _image_proxy(connection: Any) -> Any:
+    proxy = getattr(connection, "image", None)
+    if proxy is None:
+        raise ValueError("image service is unavailable")
+    return proxy
+
+
+def _get_image(proxy: Any, provider_id: str) -> Any:
+    return proxy.get_image(provider_id)
+
+
+def _find_image_by_marker(proxy: Any, marker: str | None) -> Any | None:
+    if not marker or not callable(getattr(proxy, "images", None)):
+        return None
+    for image in proxy.images():
+        properties = getattr(image, "properties", {}) or {}
+        if properties.get("cmp_operation_marker") == marker or (
+            getattr(image, "cmp_operation_marker", None) == marker
+        ):
+            return image
+    return None
+
+
+def _execute_image(
+    connection: Any,
+    operation: str,
+    provider_id: str | None,
+    params: dict[str, Any],
+) -> tuple[Any | None, ResourceOperationState]:
+    """Converge supported Glance operations without fetching image content."""
+    proxy = _image_proxy(connection)
+    if operation in {"create", "import_url"}:
+        image = _find_image_by_marker(proxy, params.get("operation_marker"))
+        if image is None:
+            image_fields = {
+                "name": params.get("name"),
+                "description": params.get("description"),
+                "disk_format": params.get("disk_format"),
+                "container_format": params.get("container_format", "bare"),
+                "visibility": params.get("visibility"),
+                "protected": params.get("protected"),
+                "tags": params.get("tags") or None,
+                "min_disk": params.get("min_disk_gib", 0),
+                "min_ram": params.get("min_ram_mib", 0),
+                "architecture": params.get("architecture"),
+                "kernel_id": params.get("kernel_id"),
+                "ramdisk_id": params.get("ramdisk_id"),
+            }
+            create = {key: value for key, value in image_fields.items() if value is not None}
+            marker = params.get("operation_marker")
+            if marker:
+                create["properties"] = {"cmp_operation_marker": marker}
+            image = proxy.create_image(**create)
+        if operation == "import_url":
+            # The Pydantic contract was revalidated above: this is a provider-side
+            # reference, never a CPS/OPS HTTP fetch or byte payload.
+            if getattr(image, "status", "").lower() not in {"active", "importing"}:
+                proxy.import_image(image, method="web-download", uri=params["source_url"])
+        return image, ResourceOperationState.SUCCEEDED
+    if not provider_id:
+        raise ValueError("image lifecycle operation requires provider_resource_id")
+    try:
+        image = _get_image(proxy, provider_id)
+    except (os_exc.NotFoundException, os_exc.ResourceNotFound, KeyError):
+        if operation == "delete":
+            return None, ResourceOperationState.ALREADY_ABSENT
+        raise
+    if operation == "delete":
+        if bool(getattr(image, "protected", False)):
+            raise os_exc.ConflictException("protected image cannot be deleted")
+        proxy.delete_image(image, ignore_missing=True)
+        return None, ResourceOperationState.SUCCEEDED
+    if operation == "patch_metadata":
+        metadata = dict(params.get("metadata", {}))
+        removals = list(params.get("remove_metadata_keys", []))
+        updater = getattr(proxy, "update_image_properties", None)
+        if removals and callable(updater):
+            updater(image, remove=removals)
+        if metadata:
+            proxy.update_image(image, **metadata)
+        return image, ResourceOperationState.SUCCEEDED
+    if operation == "set_visibility":
+        return (
+            proxy.update_image(image, visibility=params.get("visibility")),
+            ResourceOperationState.SUCCEEDED,
+        )
+    if operation == "set_protection":
+        return (
+            proxy.update_image(image, protected=params.get("protected")),
+            ResourceOperationState.SUCCEEDED,
+        )
+    if operation == "grant_member":
+        proxy.add_member(image, params["member_project_id"])
+        return image, ResourceOperationState.SUCCEEDED
+    if operation == "revoke_member":
+        proxy.remove_member(image, params["member_project_id"])
+        return image, ResourceOperationState.SUCCEEDED
+    if operation == "deactivate":
+        proxy.deactivate_image(image)
+        return image, ResourceOperationState.SUCCEEDED
+    if operation == "reactivate":
+        proxy.reactivate_image(image)
+        return image, ResourceOperationState.SUCCEEDED
+    raise ValueError(f"unsupported image operation: {operation}")
 
 
 def _execute_volume(
