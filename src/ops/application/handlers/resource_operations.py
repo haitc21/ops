@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import os
 import socket
 import time
 import uuid
@@ -120,6 +121,17 @@ def _assert_public_import_target(source_url: str) -> None:
     host = urlsplit(source_url).hostname
     if not host:
         raise ValueError("source URL host is invalid")
+    # Local OpenStack integration labs may deliberately expose a self-signed
+    # HTTPS fixture on a private address.  Keep the SSRF guard enabled by
+    # default; only an explicitly configured, already-allowlisted host may
+    # opt into this dev/test exception.
+    from ops.contracts.messages.image_operations import IMAGE_IMPORT_ALLOWED_HOSTS
+
+    if (
+        os.getenv("OPS_IMAGE_IMPORT_ALLOW_PRIVATE_HOSTS", "false").lower() == "true"
+        and host.lower().rstrip(".") in IMAGE_IMPORT_ALLOWED_HOSTS
+    ):
+        return
     try:
         answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except OSError as exc:

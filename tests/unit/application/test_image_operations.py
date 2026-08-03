@@ -113,3 +113,12 @@ def test_import_dns_rejects_private_and_reserved_answers(monkeypatch) -> None:
     )
     with pytest.raises(ValueError, match="non-public"):
         _assert_public_import_target("https://images.example.test/a.qcow2")
+
+
+def test_allowlisted_private_import_target_is_permitted_for_dev_fixture(monkeypatch) -> None:
+    monkeypatch.setenv("OPS_IMAGE_IMPORT_ALLOW_PRIVATE_HOSTS", "true")
+    monkeypatch.setattr(
+        "ops.application.handlers.resource_operations.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("192.168.122.253", 443))],
+    )
+    _assert_public_import_target("https://images.example.test/a.qcow2")
