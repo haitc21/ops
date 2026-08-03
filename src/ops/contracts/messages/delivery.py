@@ -54,6 +54,7 @@ ALLOWED_ORIGINAL_ROUTING_KEYS = frozenset(
         "openstack.instance.confirm_resize",
         "openstack.instance.revert_resize",
         "openstack.instance.rebuild",
+        "openstack.instance.snapshot.create",
         "openstack.volume.create",
         "openstack.volume.resize",
         "openstack.volume.delete",

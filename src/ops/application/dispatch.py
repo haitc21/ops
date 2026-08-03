@@ -8,6 +8,7 @@ from typing import Any
 from ops.application.handlers.connection_validate import make_connection_validate
 from ops.application.handlers.instance_action import make_instance_action
 from ops.application.handlers.instance_create import make_instance_create
+from ops.application.handlers.instance_snapshot import make_instance_snapshot
 from ops.application.handlers.inventory_collect import (
     make_inventory_collect,
     make_inventory_refresh,
@@ -56,6 +57,7 @@ from ops.contracts.messages.types import (
     INSTANCE_REBUILD,
     INSTANCE_RESIZE,
     INSTANCE_REVERT_RESIZE,
+    INSTANCE_SNAPSHOT_CREATE,
     INSTANCE_START,
     INSTANCE_STOP,
     INVENTORY_COLLECT,
@@ -133,6 +135,7 @@ def build_production_registry(settings: Settings) -> HandlerRegistry:
         make_instance_action(settings, InstanceAction.REVERT_RESIZE),
     )
     registry.register(INSTANCE_REBUILD, make_instance_action(settings, InstanceAction.REBUILD))
+    registry.register(INSTANCE_SNAPSHOT_CREATE, make_instance_snapshot(settings))
     identity_handler = make_resource_operation(settings)
     for message_type in (
         IDENTITY_DOMAIN_CREATE,
