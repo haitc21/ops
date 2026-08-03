@@ -1,0 +1,40 @@
+{
+  "message_id": "11111111-1111-4111-8111-111111111111",
+  "message_type": "cloud.inventory.batch",
+  "schema_version": "1.1",
+  "occurred_at": "2026-08-03T00:00:00Z",
+  "correlation_id": "22222222-2222-4222-8222-222222222222",
+  "causation_id": "33333333-3333-4333-8333-333333333333",
+  "operation_id": "44444444-4444-4444-8444-444444444444",
+  "idempotency_key": null,
+  "provider_id": "55555555-5555-4555-8555-555555555555",
+  "provider_connection_id": "66666666-6666-4666-8666-666666666666",
+  "trace_context": {},
+  "payload": {
+    "sync_id": "77777777-7777-4777-8777-777777777777",
+    "resource_type": "image",
+    "sequence": 1,
+    "is_last": true,
+    "collection_status": "COMPLETE",
+    "item_count": 1,
+    "checksum": "4d1b63ee6fb22de2d39aa547b598259466fe9286abbd8faf1a6e4251583c5680",
+    "items": [{
+      "provider_resource_id": "image-ubuntu-2404",
+      "project_provider_resource_id": "project-demo",
+      "name": "ubuntu-24.04",
+      "provider_status": "active",
+      "visibility": "shared",
+      "is_protected": true,
+      "container_format": "bare",
+      "disk_format": "qcow2",
+      "size_bytes": 2147483648,
+      "virtual_size_bytes": 10737418240,
+      "tags": ["cmp-catalog-approved", "ubuntu"],
+      "properties": {"os_distro": "ubuntu"},
+      "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "min_disk_gib": 20,
+      "min_ram_mib": 2048,
+      "catalog_approved": true
+    }]
+  }
+}

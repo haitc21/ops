@@ -86,6 +86,13 @@ def _feature(supported: bool, *, reason: str | None = None) -> dict[str, object]
     return result
 
 
+def _service_feature(service_available: bool, proxy: Any, *method_names: str) -> dict[str, object]:
+    if not service_available:
+        return _feature(False, reason="SERVICE_NOT_AVAILABLE")
+    supported = all(callable(getattr(proxy, method_name, None)) for method_name in method_names)
+    return _feature(supported, reason=None if supported else "CAPABILITY_NOT_SUPPORTED")
+
+
 def discover_capabilities(conn: Any) -> CapabilityDocument:
     conn.authorize()
     catalog = getattr(conn, "service_catalog", []) or []
@@ -170,13 +177,41 @@ def discover_capabilities(conn: Any) -> CapabilityDocument:
         features[feature] = _feature(
             supported, reason=None if supported else "CAPABILITY_NOT_SUPPORTED"
         )
+    image = getattr(conn, "image", None)
+    image_features = {
+        "image.import": ("import_image",),
+        "image.member": ("add_member", "remove_member", "update_member", "members"),
+        "image.deactivate": ("deactivate_image",),
+        "image.reactivate": ("reactivate_image",),
+    }
+    for feature, method_names in image_features.items():
+        features[feature] = _service_feature(
+            bool(available["image"]["available"]), image, *method_names
+        )
+    flavor_features = {
+        "flavor.create": ("create_flavor",),
+        "flavor.delete": ("delete_flavor",),
+        "flavor.access": (
+            "flavor_add_tenant_access",
+            "flavor_remove_tenant_access",
+            "get_flavor_access",
+        ),
+        "flavor.extra_specs": (
+            "create_flavor_extra_specs",
+            "delete_flavor_extra_specs_property",
+        ),
+    }
+    for feature, method_names in flavor_features.items():
+        features[feature] = _service_feature(
+            bool(available["compute"]["available"]), compute, *method_names
+        )
     scope = discover_effective_scope(conn)
     for name, capability in scope["capabilities"].items():
         features[name] = _feature(bool(capability["supported"]), reason=capability.get("reason"))
     features["identity.scope.discover"] = _feature(True)
     return CapabilityDocument.model_validate(
         {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "services": available,
             "features": features,
             # CapabilityDocument permits additive fields; this is deliberately

@@ -16,6 +16,10 @@
       "additionalProperties": {"$ref": "#/$defs/feature"}
     }
   },
+  "allOf": [{
+    "if": {"properties": {"schema_version": {"pattern": "^1\\.(?:[1-9][0-9]*)$"}}},
+    "then": {"properties": {"features": {"required": ["image.import", "image.member", "image.deactivate", "image.reactivate", "flavor.create", "flavor.delete", "flavor.access", "flavor.extra_specs"]}}}
+  }],
   "$defs": {
     "service": {"type": "object", "required": ["available"], "properties": {"available": {"type": "boolean"}, "min_version": {"type": ["string", "null"]}, "max_version": {"type": ["string", "null"]}, "reason": {"type": ["string", "null"]}}},
     "feature": {"type": "object", "required": ["supported"], "properties": {"supported": {"type": "boolean"}, "reason": {"type": ["string", "null"]}}}

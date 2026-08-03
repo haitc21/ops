@@ -78,3 +78,55 @@ def test_discovery_requires_identity_and_compute() -> None:
 
     with pytest.raises(RuntimeError, match="identity and compute"):
         discover_capabilities(connection)
+
+
+def test_discovery_reports_catalog_lifecycle_capabilities_with_reasons() -> None:
+    connection = _connection()
+    connection.compute = SimpleNamespace(
+        create_server=lambda **_: None,
+        start_server=lambda *_: None,
+        stop_server=lambda *_: None,
+        reboot_server=lambda *_args, **_kwargs: None,
+        delete_server=lambda *_: None,
+        create_flavor=lambda **_: None,
+        delete_flavor=lambda *_: None,
+        flavor_add_tenant_access=lambda *_: None,
+        flavor_remove_tenant_access=lambda *_: None,
+        get_flavor_access=lambda *_: [],
+        create_flavor_extra_specs=lambda *_: None,
+        delete_flavor_extra_specs_property=lambda *_: None,
+    )
+    connection.image = SimpleNamespace(
+        import_image=lambda *_args, **_kwargs: None,
+        add_member=lambda *_args, **_kwargs: None,
+        remove_member=lambda *_args, **_kwargs: None,
+        update_member=lambda *_args, **_kwargs: None,
+        members=lambda *_args, **_kwargs: [],
+        deactivate_image=lambda *_: None,
+        reactivate_image=lambda *_: None,
+    )
+
+    capabilities = discover_capabilities(connection)
+
+    assert capabilities.schema_version == "1.1"
+    for feature in (
+        "image.import",
+        "image.member",
+        "image.deactivate",
+        "image.reactivate",
+        "flavor.create",
+        "flavor.delete",
+        "flavor.access",
+        "flavor.extra_specs",
+    ):
+        assert capabilities.features[feature].supported is True
+
+
+def test_discovery_rejects_incomplete_image_member_api_support() -> None:
+    connection = _connection()
+    connection.image = SimpleNamespace(add_member=lambda *_args, **_kwargs: None)
+
+    capabilities = discover_capabilities(connection)
+
+    assert capabilities.features["image.member"].supported is False
+    assert capabilities.features["image.member"].reason == "CAPABILITY_NOT_SUPPORTED"

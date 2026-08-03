@@ -45,8 +45,8 @@ def test_catalog_tag_is_normalized_to_explicit_approval_flag() -> None:
     rejected = map_resource(
         "image", SimpleNamespace(id="image-2", name="private", tags=["team-only"])
     )
-    assert approved["attributes"]["catalog_approved"] is True
-    assert rejected["attributes"]["catalog_approved"] is False
+    assert approved["catalog_approved"] is True
+    assert rejected["catalog_approved"] is False
 
 
 def test_glance_property_is_normalized_to_catalog_approval() -> None:
@@ -58,7 +58,7 @@ def test_glance_property_is_normalized_to_catalog_approval() -> None:
             properties={"cmp-catalog-approved": "true"},
         ),
     )
-    assert item["attributes"]["catalog_approved"] is True
+    assert item["catalog_approved"] is True
 
 
 def test_flavor_extra_specs_is_normalized_to_catalog_approval() -> None:
@@ -84,8 +84,124 @@ def test_flavor_extra_specs_is_normalized_to_catalog_approval() -> None:
             extra_specs={"cmp-catalog-approved": "false"},
         ),
     )
-    assert approved["attributes"]["catalog_approved"] is True
-    assert rejected["attributes"]["catalog_approved"] is False
+    assert approved["catalog_approved"] is True
+    assert rejected["catalog_approved"] is False
+
+
+def test_catalog_mappers_emit_the_canonical_image_and_flavor_fields() -> None:
+    image = map_resource(
+        "image",
+        SimpleNamespace(
+            id="image-1",
+            name="ubuntu",
+            status="active",
+            owner="project-1",
+            visibility="shared",
+            protected=True,
+            container_format="bare",
+            disk_format="raw",
+            size=2_147_483_648,
+            virtual_size=10_737_418_240,
+            tags=["cmp-catalog-approved=true", "ubuntu"],
+            properties={"os_distro": "ubuntu", "password": "drop"},
+            checksum="a" * 32,
+            min_disk=20,
+            min_ram=2048,
+        ),
+    )
+    flavor = map_resource(
+        "flavor",
+        SimpleNamespace(
+            id="flavor-1",
+            name="medium",
+            vcpus=4,
+            ram=8192,
+            disk=80,
+            ephemeral=20,
+            swap="1024",
+            is_public=False,
+            disabled=False,
+            extra_specs={"hw:cpu_policy": "dedicated", "token": "drop"},
+            access_project_ids=["project-2", "project-1", "project-2"],
+        ),
+    )
+
+    assert image == {
+        "provider_resource_id": "image-1",
+        "project_provider_resource_id": "project-1",
+        "name": "ubuntu",
+        "provider_status": "active",
+        "provider_created_at": None,
+        "provider_updated_at": None,
+        "visibility": "shared",
+        "is_protected": True,
+        "container_format": "bare",
+        "disk_format": "raw",
+        "size_bytes": 2_147_483_648,
+        "virtual_size_bytes": 10_737_418_240,
+        "tags": ["cmp-catalog-approved=true", "ubuntu"],
+        "properties": {"os_distro": "ubuntu"},
+        "checksum": "a" * 32,
+        "min_disk_gib": 20,
+        "min_ram_mib": 2048,
+        "catalog_approved": True,
+        "attributes": {},
+    }
+    assert flavor == {
+        "provider_resource_id": "flavor-1",
+        "name": "medium",
+        "provider_status": None,
+        "provider_created_at": None,
+        "provider_updated_at": None,
+        "vcpus": 4,
+        "ram_mib": 8192,
+        "root_disk_gib": 80,
+        "ephemeral_disk_gib": 20,
+        "swap_mib": 1024,
+        "is_public": False,
+        "enabled": True,
+        "extra_specs": {"hw:cpu_policy": "dedicated"},
+        "access_project_ids": ["project-1", "project-2"],
+        "attributes": {},
+    }
+
+
+def test_image_collector_enriches_shared_member_access_with_a_bounded_safe_list() -> None:
+    connection = SimpleNamespace(
+        image=SimpleNamespace(
+            images=lambda: [
+                SimpleNamespace(
+                    id="image-1",
+                    name="shared",
+                    visibility="shared",
+                )
+            ],
+            members=lambda image_id: [
+                SimpleNamespace(member_id="project-2"),
+                SimpleNamespace(member_id="project-1"),
+                SimpleNamespace(member_id="project-2"),
+            ],
+        )
+    )
+
+    item = collect_resources(connection, "image")[0]
+
+    assert item["access_project_ids"] == ["project-1", "project-2"]
+
+
+def test_catalog_metadata_is_bounded_to_the_cps_contract_limits() -> None:
+    item = map_resource(
+        "image",
+        SimpleNamespace(
+            id="image-1",
+            name="safe",
+            properties={f"key-{index:03d}": "safe" for index in range(130)},
+        ),
+    )
+
+    assert len(item["properties"]) == 128
+    assert "key-127" in item["properties"]
+    assert "key-128" not in item["properties"]
 
 
 def test_volume_type_extra_specs_is_normalized_to_catalog_approval() -> None:

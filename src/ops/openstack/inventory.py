@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from typing import Any
@@ -76,6 +77,11 @@ _SENSITIVE_KEY_PARTS = (
     "user_data",
     "ca_cert",
 )
+_MAX_CATALOG_ACCESS_LOOKUPS = 256
+_MAX_CATALOG_METADATA_BYTES = 64 * 1024
+_MAX_CATALOG_METADATA_DEPTH = 4
+_MAX_CATALOG_METADATA_ENTRIES = 128
+_MAX_CATALOG_METADATA_STRING_LENGTH = 4096
 
 
 def _value(resource: Any, name: str, default: Any = None) -> Any:
@@ -101,6 +107,73 @@ def _bool(value: Any) -> bool | None:
         if lowered in {"false", "no", "0"}:
             return False
     return None
+
+
+def _integer(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sanitize_catalog_metadata(value: Any, *, key: str = "", depth: int = 0) -> Any:
+    """Match CPS catalog metadata bounds while dropping provider secrets."""
+    if depth > _MAX_CATALOG_METADATA_DEPTH or _is_sensitive_key(key):
+        return _DROP
+    if value is None or isinstance(value, bool | int | float):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= _MAX_CATALOG_METADATA_STRING_LENGTH else _DROP
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for child_key, child_value in sorted(value.items(), key=lambda item: str(item[0])):
+            normalized_key = str(child_key)
+            if not normalized_key or len(normalized_key) > 255 or _is_sensitive_key(normalized_key):
+                continue
+            sanitized = _sanitize_catalog_metadata(child_value, key=normalized_key, depth=depth + 1)
+            if sanitized is not _DROP:
+                result[normalized_key] = sanitized
+            if len(result) >= _MAX_CATALOG_METADATA_ENTRIES:
+                break
+        return result
+    if isinstance(value, list | tuple | set | frozenset):
+        list_result: list[Any] = []
+        for child_value in value:
+            sanitized = _sanitize_catalog_metadata(child_value, depth=depth + 1)
+            if sanitized is not _DROP:
+                list_result.append(sanitized)
+            if len(list_result) >= _MAX_CATALOG_METADATA_ENTRIES:
+                break
+        return list_result
+    return _DROP
+
+
+def _safe_catalog_mapping(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    sanitized = _sanitize_catalog_metadata(value)
+    if not isinstance(sanitized, dict):
+        return None
+    while (
+        sanitized
+        and len(
+            json.dumps(sanitized, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+                "utf-8"
+            )
+        )
+        > _MAX_CATALOG_METADATA_BYTES
+    ):
+        sanitized.pop(next(reversed(sanitized)))
+    return sanitized
+
+
+def _project_access_ids(value: Any) -> list[str] | None:
+    if not isinstance(value, list | tuple | set | frozenset):
+        return None
+    project_ids = {str(item) for item in value if isinstance(item, str | int) and str(item)}
+    return sorted(project_ids)
 
 
 def _volume_attachment_summary(value: Any) -> list[dict[str, Any]]:
@@ -198,14 +271,48 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         project_id = _value(resource, "project_id") or _value(resource, "tenant_id")
         if project_id is not None:
             item["project_provider_resource_id"] = project_id
+    if resource_type == "image":
+        project_id = _value(resource, "owner") or _value(resource, "owner_id")
+        catalog_fields = {
+            "project_provider_resource_id": project_id,
+            "visibility": _value(resource, "visibility"),
+            "is_protected": _bool(_value(resource, "protected")),
+            "container_format": _value(resource, "container_format"),
+            "disk_format": _value(resource, "disk_format"),
+            "size_bytes": _integer(_value(resource, "size")),
+            "virtual_size_bytes": _integer(_value(resource, "virtual_size")),
+            "properties": _safe_catalog_mapping(_value(resource, "properties")),
+            "checksum": _value(resource, "checksum"),
+            "min_disk_gib": _integer(_value(resource, "min_disk")),
+            "min_ram_mib": _integer(_value(resource, "min_ram")),
+        }
+        for key, value in catalog_fields.items():
+            if value is not None:
+                item[key] = value
+    if resource_type == "flavor":
+        disabled = _bool(_value(resource, "disabled"))
+        catalog_fields = {
+            "vcpus": _integer(_value(resource, "vcpus")),
+            "ram_mib": _integer(_value(resource, "ram")),
+            "root_disk_gib": _integer(_value(resource, "disk")),
+            "ephemeral_disk_gib": _integer(_value(resource, "ephemeral")),
+            "swap_mib": _integer(_value(resource, "swap")),
+            "is_public": _bool(_value(resource, "is_public")),
+            "enabled": None if disabled is None else not disabled,
+            "extra_specs": _safe_catalog_mapping(_value(resource, "extra_specs")),
+            "access_project_ids": _project_access_ids(_value(resource, "access_project_ids")),
+        }
+        for key, value in catalog_fields.items():
+            if value is not None:
+                item[key] = value
     attributes: dict[str, Any] = {}
     fields = {
         "region": ("description", "parent_region_id"),
         "domain": ("description", "is_enabled"),
         "project": ("domain_id", "domain_name", "description", "is_enabled"),
-        "flavor": ("vcpus", "ram", "disk", "ephemeral", "swap", "is_public"),
+        "flavor": (),
         "availability-zone": ("available",),
-        "image": ("visibility", "size", "min_disk", "min_ram", "disk_format", "checksum"),
+        "image": (),
         "network": ("admin_state_up", "shared", "is_router_external", "mtu"),
         "subnet": (
             "network_id",
@@ -284,22 +391,38 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
     tags = _value(resource, "tags")
     if isinstance(tags, list | tuple | set | frozenset):
         normalized_tags = [str(tag) for tag in tags if tag is not None]
-        attributes["tags"] = normalized_tags[:64]
-        attributes["catalog_approved"] = "cmp-catalog-approved=true" in {
-            tag.lower() for tag in normalized_tags
-        }
+        if resource_type == "image":
+            item["tags"] = normalized_tags[:64]
+        else:
+            attributes["tags"] = normalized_tags[:64]
+        catalog_approved = "cmp-catalog-approved=true" in {tag.lower() for tag in normalized_tags}
+        if resource_type in {"image", "flavor"}:
+            item["catalog_approved"] = catalog_approved
+        else:
+            attributes["catalog_approved"] = catalog_approved
     metadata = _value(resource, "metadata") or _value(resource, "properties")
     if isinstance(metadata, Mapping):
         approval = metadata.get("cmp-catalog-approved")
         if isinstance(approval, str):
-            attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
+            value = approval.lower() in {"true", "1", "yes"}
+            if resource_type in {"image", "flavor"}:
+                item["catalog_approved"] = value
+            else:
+                attributes["catalog_approved"] = value
     extra_specs = _value(resource, "extra_specs")
     if isinstance(extra_specs, Mapping):
         approval = extra_specs.get("cmp-catalog-approved")
         if isinstance(approval, str):
-            attributes["catalog_approved"] = approval.lower() in {"true", "1", "yes"}
+            value = approval.lower() in {"true", "1", "yes"}
+            if resource_type == "flavor":
+                item["catalog_approved"] = value
+            else:
+                attributes["catalog_approved"] = value
         elif isinstance(approval, bool):
-            attributes["catalog_approved"] = approval
+            if resource_type == "flavor":
+                item["catalog_approved"] = approval
+            else:
+                attributes["catalog_approved"] = approval
     item["attributes"] = attributes
     return item
 
@@ -329,7 +452,13 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
     }
     service, method_name = proxy_name[resource_type]
     proxy = getattr(connection, service)
-    resources: Iterable[Any] = getattr(proxy, method_name)()
+    if resource_type == "flavor":
+        try:
+            resources: Iterable[Any] = getattr(proxy, method_name)(get_extra_specs=True)
+        except TypeError:
+            resources = getattr(proxy, method_name)()
+    else:
+        resources = getattr(proxy, method_name)()
     if resource_type == "availability-zone":
         approved_zones = {
             str(_value(aggregate, "availability_zone"))
@@ -365,6 +494,34 @@ def collect_resources(connection: Any, resource_type: str) -> list[dict[str, Any
             )
     else:
         mapped = [map_resource(resource_type, resource) for resource in resources]
+    if resource_type == "image":
+        member_reader = getattr(connection.image, "members", None)
+        shared_images = [item for item in mapped if item.get("visibility") == "shared"]
+        if len(shared_images) > _MAX_CATALOG_ACCESS_LOOKUPS:
+            raise RuntimeError("image member enrichment exceeds bounded lookup budget")
+        if callable(member_reader):
+            for item in shared_images:
+                project_ids = _project_access_ids(
+                    [
+                        _value(entry, "member_id") or _value(entry, "member")
+                        for entry in member_reader(item["provider_resource_id"])
+                    ]
+                )
+                if project_ids is not None:
+                    item["access_project_ids"] = project_ids
+    if resource_type == "flavor":
+        access_reader = getattr(connection.compute, "get_flavor_access", None)
+        private_flavors = [item for item in mapped if item.get("is_public") is False]
+        if len(private_flavors) > _MAX_CATALOG_ACCESS_LOOKUPS:
+            raise RuntimeError("flavor access enrichment exceeds bounded lookup budget")
+        if callable(access_reader):
+            for item in private_flavors:
+                access = access_reader(item["provider_resource_id"])
+                project_ids = _project_access_ids(
+                    [_value(entry, "tenant_id") or _value(entry, "project_id") for entry in access]
+                )
+                if project_ids is not None:
+                    item["access_project_ids"] = project_ids
     if resource_type == "keypair":
         project_id = discover_effective_scope(connection).get("project_id")
         if project_id:
