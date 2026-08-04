@@ -1,6 +1,6 @@
 # OPS-1906 — Horizon semantic parity and catalog enrichment
 
-**Status:** Planned  
+**Status:** Deferred — implementation committed; TMS integration and OpenStack scope-policy closure pending  
 **Points:** 8  
 **Paired task:** CPS-1906
 

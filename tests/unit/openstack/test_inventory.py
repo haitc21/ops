@@ -134,6 +134,7 @@ def test_catalog_mappers_emit_the_canonical_image_and_flavor_fields() -> None:
         "provider_created_at": None,
         "provider_updated_at": None,
         "visibility": "shared",
+        "is_public": False,
         "is_protected": True,
         "container_format": "bare",
         "disk_format": "raw",

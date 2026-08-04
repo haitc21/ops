@@ -235,10 +235,13 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
     provider_id = str(_value(resource, "id", ""))
     name_value = _value(resource, "name", provider_id)
     name = str(name_value or provider_id)
+    provider_status = _value(resource, "status")
+    if resource_type in {"image", "flavor"} and isinstance(provider_status, str):
+        provider_status = provider_status.lower()
     item: dict[str, Any] = {
         "provider_resource_id": provider_id,
         "name": name,
-        "provider_status": _value(resource, "status"),
+        "provider_status": provider_status,
         "provider_created_at": _iso(_value(resource, "created_at")),
         "provider_updated_at": _iso(_value(resource, "updated_at")),
         "attributes": {},
@@ -276,6 +279,7 @@ def map_resource(resource_type: str, resource: Any) -> dict[str, Any]:
         catalog_fields = {
             "project_provider_resource_id": project_id,
             "visibility": _value(resource, "visibility"),
+            "is_public": _value(resource, "visibility") == "public",
             "is_protected": _bool(_value(resource, "protected")),
             "container_format": _value(resource, "container_format"),
             "disk_format": _value(resource, "disk_format"),
