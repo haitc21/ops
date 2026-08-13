@@ -450,3 +450,15 @@ unless a future migration explicitly reopens them.
 - **Acceptance:** user commands require safe CPS decision metadata; missing,
   malformed, and expired contexts fail before mutation; OPS receives no bearer
   token, performs no TMS/LMS call, and makes no tenant-role decision.
+
+## Epic OPS-E19 — Declared-scope provider execution
+
+### OPS-1909 — Declared-scope OpenStack execution enforcement
+
+- **Sprint/Priority/Points:** 19 / Must (expedited) / 8
+- **Depends on:** OPS-1201, OPS-1202, CPS-1909 canonical contract
+- **Acceptance:** OPS executes exactly the CPS-selected connection/purpose,
+  validates admin-system/admin-project/tenant-project scope before SDK access,
+  never selects an alternate connection, distinguishes 401/403 authorization
+  from unsupported discovery, and prevents authorization-failed required
+  inventory from finalizing as successful.

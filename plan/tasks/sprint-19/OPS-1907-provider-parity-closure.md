@@ -3,7 +3,7 @@
 **Status:** Planned  
 **Points:** 13  
 **Paired task:** CPS-1907  
-**Depends on:** OPS-1906
+**Depends on:** OPS-1906, OPS-1909
 
 ## Testable outcome
 

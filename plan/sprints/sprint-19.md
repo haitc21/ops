@@ -1,8 +1,10 @@
 # Sprint 19 — OpenStack image and flavor administration adapter
 
-**Status:** Extension selected — original OPS-1901..1905 complete; OPS-1906..1908 planned
+**Status:** Replanned — original OPS-1901..1905 complete; OPS-1909 expedited
+before OPS-1906..1908 closure
 **Dates:** 2026-08-03 to 2026-08-14
-**Capacity:** 34 delivered + 29-point Horizon parity extension
+**Capacity:** 34 delivered; 29-point Horizon parity extension paused behind the
+8-point OPS-1909 business-boundary correction
 **Sprint Goal:** OPS safely executes and reconciles the image/flavor
 administration commands defined by CPS, using supported OpenStackSDK APIs and
 returning provider-neutral, replay-safe results.
@@ -19,6 +21,7 @@ returning provider-neutral, replay-safe results.
 | OPS-1906 Horizon semantic parity and catalog enrichment | 8 | OPS | CPS-1906 | Deferred — implementation committed; TMS/scope-policy closure pending |
 | OPS-1907 Flavor and image provider lifecycle parity closure | 13 | OPS | CPS-1907 | Planned |
 | OPS-1908 API-driven compatibility and live acceptance | 8 | CPS/OPS | CPS-1908 | Planned |
+| OPS-1909 Declared-scope OpenStack execution enforcement | 8 | OPS | CPS-1909 | Selected — expedited |
 
 ## Task backlog
 
@@ -29,9 +32,10 @@ returning provider-neutral, replay-safe results.
 | [OPS-1903](../tasks/sprint-19/OPS-1903-image-lifecycle.md) | Replay-safe Glance image handlers | OPS-1901 | Done |
 | [OPS-1904](../tasks/sprint-19/OPS-1904-instance-image-integration.md) | Nova snapshot and source compatibility behavior | OPS-1901, OPS-1903 | Done |
 | [OPS-1905](../tasks/sprint-19/OPS-1905-catalog-acceptance.md) | Live compatibility/recovery/cleanup evidence | OPS-1902..1904 | Done (waived restart/failure path) |
-| [OPS-1906](../tasks/sprint-19/OPS-1906-horizon-semantic-parity.md) | Nova/Glance filter, detail, capability, and normalization parity | OPS-1901..1905 | Deferred — implementation committed; TMS/scope-policy closure pending |
-| [OPS-1907](../tasks/sprint-19/OPS-1907-provider-parity-closure.md) | Close safe flavor/image lifecycle gaps with replay-safe SDK handlers | OPS-1906 | Planned |
-| [OPS-1908](../tasks/sprint-19/OPS-1908-portal-live-acceptance.md) | CPS API/OPS/OpenStack comparison, recovery, and cleanup evidence | OPS-1907 | Planned |
+| [OPS-1909](../tasks/sprint-19/OPS-1909-scope-aware-execution.md) | Enforce CPS-declared admin/tenant execution context and classify 403 as authorization failure without fallback | OPS-1201, OPS-1202 | Selected — expedited |
+| [OPS-1906](../tasks/sprint-19/OPS-1906-horizon-semantic-parity.md) | Nova/Glance filter, detail, capability, and normalization parity | OPS-1901..1905, OPS-1909 | Deferred — implementation committed; re-review after 1909 |
+| [OPS-1907](../tasks/sprint-19/OPS-1907-provider-parity-closure.md) | Close safe flavor/image lifecycle gaps with replay-safe SDK handlers | OPS-1906, OPS-1909 | Planned — blocked by expedited task |
+| [OPS-1908](../tasks/sprint-19/OPS-1908-portal-live-acceptance.md) | CPS API/OPS/OpenStack comparison, recovery, and cleanup evidence | OPS-1907, OPS-1909, CPS-1910 | Planned — blocked by expedited tasks |
 
 ## Architecture and reuse constraints
 
@@ -45,6 +49,10 @@ returning provider-neutral, replay-safe results.
 - Every handler validates scope/capability, performs provider-state replay
   checks, uses bounded retries/waiters, normalizes safe request IDs/errors, and
   publishes terminal result before acknowledging the command.
+- OPS executes exactly the CPS-selected connection/purpose. It never chooses an
+  alternate connection after authorization failure; `401/403` is distinct from
+  unsupported service discovery and cannot finalize required inventory as
+  successful.
 
 ## Required execution protocol
 
